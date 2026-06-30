@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     "pino",
     "pino-http",
     "pdfkit",
+    "snarkjs",
   ],
   typedRoutes: true,
 };

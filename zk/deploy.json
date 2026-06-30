@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "networkPassphrase": "Test SDF Network ; September 2015",
+  "contractId": "CCQCCOOWXKM6CF2N7FQJC2W27ZG43JOKB7IPYTCAVZC7EQ7CPIJWVE5R",
+  "wasmHash": "63a07f341f512f5cef92035133466d6b4db4ae72d279b1dca060a0459d3d4644",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "encoding": { "endianness": "big-endian", "fp2Order": "c1c0", "negateA": "off-chain" },
+  "circuit": "commit.circom (commitment = secret^2 + blinding, BLS12-381)",
+  "deployer": "GA6N25U5KNP667K6B2HTZH3BQG6AKYNNYS3BWS4FHZ7IV2QWIBI3P6CQ"
+}
