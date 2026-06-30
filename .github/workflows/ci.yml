@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main, develop]
+  # Run on every PR regardless of base branch so stacked PRs (e.g. phase N
+  # targeting phase N-1's branch before it merges to develop) are validated too.
   pull_request:
-    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}

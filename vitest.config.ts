@@ -10,7 +10,10 @@ export default defineConfig({
     globals: false,
     pool: "forks",
     poolOptions: { forks: { singleFork: true } },
-    include: ["test/**/*.test.ts"],
+    // Co-located unit tests (lib/**, app/**, middleware.test.ts) plus the
+    // integration suites under test/ and tests/.
+    include: ["**/*.test.ts"],
+    exclude: ["**/node_modules/**", "**/.next/**", "lib/generated/**", "**/dist/**"],
   },
   resolve: {
     alias: {
