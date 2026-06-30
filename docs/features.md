@@ -35,8 +35,14 @@ database, and the cross-cutting libs every later phase consumes.
 - **CI (GitHub Actions)** — `.github/workflows/ci.yml` on push/PR to
   `main`/`develop`: a `quality` job (postgres:17 + redis:7 services →
   `prisma generate` → `migrate deploy` → typecheck → lint → test), a `build`
-  job (`next build`), and an informational `audit` job. `packageManager` pinned
-  to `pnpm@10.6.4` for deterministic installs.
+  job (`next build`), and a gating `audit` job (`pnpm audit --audit-level high`).
+  `packageManager` pinned to `pnpm@10.6.4` for deterministic installs.
+- **axios override** — `pnpm.overrides` forces `axios@^1.16.0` (resolves
+  1.18.1), clearing the 11 high-severity advisories transitively pulled by
+  `@stellar/stellar-sdk` (which pins axios 1.15.0). Verified the SDK still works
+  end-to-end: Keypair sign/verify, TransactionBuilder XDR roundtrip, and live
+  Horizon (`feeStats`) + Soroban RPC (`getLatestLedger`) axios calls. Audit now
+  reports 0 high (2 moderate remain).
 
 **Verification:** `pnpm typecheck`, `pnpm lint`, and `pnpm test` (6 tests) all
 green; `/api/health` returns `200 {"status":"ok",...}` against the dev stack.
