@@ -17,56 +17,18 @@ import { AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
-// FORKED-SPP WIRING — vendored under vendor/spp (see vendor/spp/README.md).
-// Trexure authors NO circuits. The fork supplies the privacy-pool contracts,
-// the Circom circuits, and the WASM prover (`@trexure/spp`). We only (a) submit
-// a private payment + obtain a proof, and (b) verify proofs on-chain via the
-// Groth16 verifier contract (ZK_CONTRACT_ID).
+// Real Groth16 ZK lives in lib/zk/groth16.ts (snarkjs BLS12-381 prover) + the
+// deployed Soroban verifier contract (zk/deploy.json). This module keeps the
+// tenant shield-key resolution and the on-chain verify gate.
 // ---------------------------------------------------------------------------
 
-type SppModule = {
-  proveDeposit(args: {
-    payload: Record<string, unknown>;
-    noteKey: Buffer;
-    contractId: string;
-  }): Promise<{ proof: Buffer; txHash: string }>;
-};
-
-let _spp: SppModule | null | undefined;
-
-async function loadSpp(): Promise<SppModule | null> {
-  if (_spp !== undefined) return _spp;
-  try {
-    // Vendored forked-SPP WASM prover. Present only when the fork is wired.
-    _spp = (await import("@trexure/spp")) as unknown as SppModule;
-  } catch {
-    _spp = null; // not wired yet → caller uses the labeled fallback
-  }
-  return _spp;
-}
-
-/** True only when the REAL SPP proving path is wired and explicitly enabled. */
+/**
+ * True when the real ZK proving path is enabled: the on-chain verifier is
+ * configured AND proving is explicitly opted in (ZK_PROVING=live). When false,
+ * `shield` uses the labeled AES-wrap fallback (no faked verification).
+ */
 export async function isSppAvailable(): Promise<boolean> {
-  if (!env.ZK_CONTRACT_ID) return false;
-  if (process.env.ZK_SPP_PROVING !== "live") return false; // explicit opt-in
-  return (await loadSpp()) !== null;
-}
-
-/** REAL forked-SPP proving (WASM + privacy-pool submit). Throws if not wired. */
-export async function sppProve(
-  payload: Record<string, unknown>,
-  noteKey: Buffer,
-): Promise<{ proof: Buffer }> {
-  const spp = await loadSpp();
-  if (!spp) {
-    throw new AppError(503, "SPP prover unavailable", "Forked SPP WASM prover not loaded");
-  }
-  const { proof } = await spp.proveDeposit({
-    payload,
-    noteKey,
-    contractId: env.ZK_CONTRACT_ID,
-  });
-  return { proof };
+  return Boolean(env.ZK_CONTRACT_ID) && process.env.ZK_PROVING === "live";
 }
 
 /**

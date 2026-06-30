@@ -16,10 +16,12 @@ import {
 } from "@stellar/stellar-sdk";
 
 import { env } from "@/lib/env";
+import { FR, deriveCommitment, hexCommitment } from "@/lib/zk/commit";
 
-// BLS12-381 base field (Fp) and scalar field (Fr) orders.
+export { FR, deriveCommitment, hexCommitment };
+
+// BLS12-381 base field (Fp) order.
 const FP = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaabn;
-export const FR = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001n;
 
 const ZK_DIR = path.join(process.cwd(), "zk", "artifacts");
 const WASM_PATH = path.join(ZK_DIR, "commit.wasm");
@@ -107,8 +109,29 @@ export async function verifyProofOnChain(pkg: ProofPackage): Promise<boolean> {
   return scValToNative((sim as { result: { retval: unknown } }).result.retval as Parameters<typeof scValToNative>[0]) === true;
 }
 
-/** A random scalar in [1, r). */
-export function randomScalar(): bigint {
-  const { randomBytes } = require("node:crypto") as typeof import("node:crypto");
-  return (BigInt("0x" + randomBytes(32).toString("hex")) % (FR - 1n)) + 1n;
+export type PaymentProofResult = {
+  verified: boolean;
+  commitment: string;
+  proofHash: string;
+  contractId: string;
+  explorerUrl: string;
+};
+
+/**
+ * Real end-to-end payment-proof verification: derive (secret, blinding) from the
+ * tenant view key + intentId, generate a REAL Groth16 proof, and verify it
+ * ON-CHAIN against the deployed Soroban verifier. The secret never leaves the
+ * server; only the commitment + proof are used.
+ */
+export async function verifyPaymentProofOnChain(viewKey: Buffer, bindingId: string): Promise<PaymentProofResult> {
+  const { secret, blinding, commitment } = deriveCommitment(viewKey, bindingId);
+  const pkg = await proveCommitment(secret, blinding);
+  const verified = await verifyProofOnChain(pkg);
+  return {
+    verified,
+    commitment: commitment.toString(),
+    proofHash: hexCommitment(commitment),
+    contractId: env.ZK_CONTRACT_ID,
+    explorerUrl: `https://stellar.expert/explorer/testnet/contract/${env.ZK_CONTRACT_ID}`,
+  };
 }

@@ -3,6 +3,7 @@ import * as crypto from "node:crypto";
 import argon2 from "argon2";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { deriveCommitment, hexCommitment } from "../lib/zk/commit";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -131,8 +132,10 @@ async function main() {
     ),
     viewKeyMaterial,
   );
-  const proofHash =
-    "0x" + crypto.createHash("sha256").update(shieldedBlob.ciphertext).digest("hex");
+  // proofHash is the REAL ZK public commitment derived from the tenant view key
+  // + intentId (commitment = secret^2 + blinding). The /verify-proof endpoint
+  // regenerates the Groth16 proof for this commitment and verifies it on-chain.
+  const proofHash = hexCommitment(deriveCommitment(viewKeyMaterial, SAMPLE_INTENT_ID).commitment);
 
   const payment = await prisma.payment.upsert({
     where: { intentId: SAMPLE_INTENT_ID },

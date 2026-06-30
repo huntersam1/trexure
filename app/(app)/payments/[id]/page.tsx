@@ -7,6 +7,7 @@ import { CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
 import { PaymentLifecycle } from "@/components/lifecycle/PaymentLifecycle";
 import { DemoReplayController } from "@/components/demo/DemoReplayController";
 import { RetryReconcileButton } from "@/components/payments/RetryReconcileButton";
+import { VerifyProofButton } from "@/components/zk/VerifyProofButton";
 import { SAMPLE_INTENT_ID } from "@/lib/demo/replay";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ export default async function PaymentDetailPage({
           <RetryReconcileButton paymentId={payment.id} csrfToken={csrfToken} />
         </div>
       )}
+      {payment.shielded && <VerifyProofButton paymentId={payment.id} csrfToken={csrfToken} />}
       <PaymentLifecycle payment={payment} initialReceipt={receipt} csrfToken={csrfToken} />
     </div>
   );

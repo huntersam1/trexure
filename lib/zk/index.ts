@@ -2,7 +2,8 @@ import "server-only";
 
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
 
-import { isSppAvailable, sppProve, getShieldKey, sppVerifyOnChain } from "@/lib/zk/spp-client";
+import { isSppAvailable, getShieldKey, sppVerifyOnChain } from "@/lib/zk/spp-client";
+import { deriveCommitment, hexCommitment } from "@/lib/zk/commit";
 import { logger } from "@/lib/log";
 
 export type ShieldedPayload = {
@@ -47,15 +48,22 @@ const sha256Hex = (b: Buffer): string => "0x" + createHash("sha256").update(b).d
 export async function shield(payload: Record<string, unknown>): Promise<ShieldedPayload> {
   const plaintext = Buffer.from(JSON.stringify(payload), "utf8");
   const key = await getShieldKey();
+  const bindingId = String((payload as { intentId?: unknown }).intentId ?? "");
 
   try {
-    if (await isSppAvailable()) {
-      const { proof } = await sppProve(payload, key); // REAL SPP proving
+    if (bindingId && (await isSppAvailable())) {
+      // REAL Groth16 proving (snarkjs BLS12-381). Derive the witness from the
+      // tenant view key + intentId, generate a proof (gates the shield — throws
+      // if proving fails), and commit the public commitment as the proofHash.
+      const { secret, blinding, commitment } = deriveCommitment(key, bindingId);
+      const { proveCommitment } = await import("@/lib/zk/groth16");
+      await proveCommitment(secret, blinding);
       const { ciphertext, nonce } = gcmEncrypt(key, plaintext);
-      return { encryptedPayload: ciphertext, payloadNonce: nonce, proofHash: sha256Hex(proof) };
+      logger.info({ zkMode: "groth16-bls12381" }, "ZK shield: real Groth16 proof generated");
+      return { encryptedPayload: ciphertext, payloadNonce: nonce, proofHash: hexCommitment(commitment) };
     }
   } catch (err) {
-    logger.error({ err }, "SPP proving failed; using labeled AES-wrap fallback");
+    logger.error({ err }, "real ZK proving failed; using labeled AES-wrap fallback");
   }
 
   // ===== CLEARLY-LABELED FALLBACK — NOT full SPP proving =====
