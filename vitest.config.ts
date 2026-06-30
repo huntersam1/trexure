@@ -12,7 +12,7 @@ export default defineConfig({
     poolOptions: { forks: { singleFork: true } },
     // Co-located unit tests (lib/**, app/**, middleware.test.ts) plus the
     // integration suites under test/ and tests/.
-    include: ["**/*.test.ts"],
+    include: ["**/*.test.ts", "**/*.test.tsx"],
     exclude: ["**/node_modules/**", "**/.next/**", "lib/generated/**", "**/dist/**"],
   },
   resolve: {
