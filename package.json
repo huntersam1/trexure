@@ -42,7 +42,8 @@
   },
   "pnpm": {
     "overrides": {
-      "axios": "^1.16.0"
+      "axios": "^1.16.0",
+      "ioredis": "5.10.1"
     }
   },
   "devDependencies": {
