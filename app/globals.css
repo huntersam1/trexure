@@ -1,0 +1,91 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+@theme {
+  /* Colors */
+  --color-primary: #8E44AD;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #F5EEF8;
+  --color-on-primary-container: #2E1A47;
+  --color-accent: #D4AF37;
+  --color-tertiary: #F4D03F;
+  --color-secondary: #5B4A70;
+  --color-on-secondary: #ffffff;
+  --color-background: #F7F9FB;
+  --color-surface: #ffffff;
+  --color-surface-variant: #F2F4F6;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #FAFBFC;
+  --color-surface-container: #F2F4F6;
+  --color-surface-container-high: #EBECEF;
+  --color-surface-container-highest: #E0E3E5;
+  --color-on-surface: #1A1025;
+  --color-on-surface-variant: #5B4A70;
+  --color-outline: #D1D5DB;
+  --color-outline-variant: #E5E7EB;
+  --color-inverse-surface: #1A1025;
+  --color-on-inverse-surface: #F2E9FB;
+  --color-error: #BA1A1A;
+  --color-error-container: #FFDAD6;
+
+  /* Font families */
+  --font-geist: "Geist", sans-serif;          /* headlines / display */
+  --font-inter: "Inter", sans-serif;          /* body */
+  --font-mono: "JetBrains Mono", monospace;   /* code, labels, machine data */
+
+  /* Type scale (size / line-height / weight / tracking) */
+  --text-display-lg: 48px;
+  --text-display-lg--line-height: 56px;
+  --text-display-lg--font-weight: 600;
+  --text-display-lg--letter-spacing: -0.02em;
+
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 40px;
+  --text-headline-lg--font-weight: 600;
+  --text-headline-lg--letter-spacing: -0.01em;
+
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 32px;
+  --text-headline-md--font-weight: 500;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+
+  --text-code-block: 14px;
+  --text-code-block--line-height: 22px;
+  --text-label-mono: 13px;
+  --text-label-mono--line-height: 16px;
+  --text-label-mono--letter-spacing: 0.02em;
+  --text-label-mono--font-weight: 500;
+
+  /* Radius */
+  --radius: 0.25rem;        /* DEFAULT 4px */
+  --radius-lg: 0.5rem;      /* 8px */
+  --radius-xl: 0.75rem;     /* 12px */
+  --radius-2xl: 1rem;       /* 16px — receipt card */
+  --radius-full: 9999px;
+
+  /* Named spacing (enables p-gutter, gap-stack-md, etc.) */
+  --spacing-base: 4px;
+  --spacing-stack-xs: 8px;
+  --spacing-stack-md: 16px;
+  --spacing-stack-lg: 32px;
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-margin-desktop: 32px;
+  --spacing-container-max: 1280px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-inter);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+  }
+}
