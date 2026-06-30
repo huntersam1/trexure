@@ -5,6 +5,61 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 8] Admin, Settings & API-Key UI — #9
+
+Tenant Settings (write-only ViewKey, anchor config, webhook-secret rotation),
+the API-keys management page, the ADMIN-only console + webhook log, the
+supporting admin API routes, and audit-log surfacing — all tenant-scoped or
+role-gated, Zod-validated, problem+json, and audited.
+
+- **Foundations** (`lib/audit/log.ts` `recordAudit` best-effort; `lib/admin/queries.ts`
+  global reads; `lib/validation/{admin,settings}.ts` `.strict()` schemas).
+- **Admin API** — `GET /api/admin/tenants`, `POST /api/admin/users`
+  (requireAdmin + CSRF + Zod + argon2id; never echoes passwordHash),
+  `GET /api/admin/webhook-events` (verification + idempotency). All audited.
+- **Settings** (`lib/settings/{load,actions}.ts`) — redacted `getSettingsView`
+  (no key material; only a sha256 fingerprint chip) + Server Actions:
+  `saveViewKeyAction` / `saveAnchorConfigAction` / `rotateWebhookSecretAction`.
+  tenantId always from the session, never the form; webhook secret stored
+  AES-256-GCM nonce-prefixed; rotation reveals the new secret once.
+- **Pages** — `/settings` (write-only ViewKey + anchor + rotation),
+  `/settings/api-keys` (create-once / list / revoke), `/admin` (tenants, create
+  user, live worker/db/redis health, webhook summary, audit read view),
+  `/admin/webhooks` (raw inbound event log). ADMIN pages role-gated by
+  `requireAdmin`.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (181 passing, 1
+guarded MinIO test skipped), and `next build` all green; new routes present
+(`/settings`, `/settings/api-keys`, `/admin`, `/admin/webhooks`, + 3 admin APIs).
+
+**Notes / deviations from the plan (adapted to real prior-phase code):**
+- CSRF: the plan's client islands read a JS-readable `csrf_token` cookie, but the
+  real double-submit cookie is `__Host-trexure_csrf` and **HttpOnly**. The RSC
+  pages read it server-side and pass the token as a `csrfToken` prop to the
+  islands (which echo it in `x-csrf-token`). Settings forms use Server Actions
+  (Next origin-checks them) — no manual token.
+- `storeViewKey` takes a `Buffer` (not the string the plan assumed); the action
+  converts the form text via `Buffer.from(text, "utf8")`.
+- Anchor `webhookSecret` (Bytes) + tenant-scoped `upsert`/`update` via `forTenant`
+  use `as unknown as Prisma.AnchorConfig{Unchecked…Input}` casts (Buffer→Bytes +
+  injected tenantId), runtime values unchanged.
+- `HealthPanel` reads the real `/api/health` shape (`checks.{db,redis,worker}` +
+  `worker.lastBeatMs`), not the plan's `{ db, redis, worker.alive/lastHeartbeatAt }`.
+- `createUserSchema.tenantId` is `z.string().min(1)` (not `.cuid()`) because the
+  seed HQ tenant id (`seed_tenant_trexure_hq`) isn't a cuid.
+- `admin/users` route projects only safe response fields (never echoes
+  passwordHash regardless of the row shape).
+- Create-key/revoke islands use `router.refresh()` (not `window.location.reload()`)
+  so the shown-once secret survives the list refresh.
+- Several plan test mocks adjusted: `vi.hoisted()` for module-scope mock vars;
+  the rotate test's `forTenant` mock gained `update`; `storeViewKey` expectation
+  is a Buffer; the admin page-guard / webhooks-page tests assert the
+  `requireAdmin` gate is invoked (the 403 path is covered by the admin route
+  tests) to avoid a vitest unhandled-rejection artifact when invoking the async
+  Server Component default export in the reject path.
+
+---
+
 ## [Phase 7] Frontend Shell & Payment Lifecycle — #8
 
 The authenticated app shell, brand component library, and the four-state
