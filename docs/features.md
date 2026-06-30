@@ -5,6 +5,53 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 3] Stellar Client & Payments — #4
+
+The payment spine: a tenant submits a server-signed Soroban private payment that
+persists as `PENDING` with a shielded payload and enqueues the watch-onchain job.
+
+- **Queue** (`lib/queue/index.ts`) — single ioredis connection + `watchOnchain`/
+  `reconcile` BullMQ queues + frozen `QUEUE` constants.
+- **ZK stub** (`lib/zk/stub.ts` + `index.ts`) — clearly-labeled `shield()`
+  matching the frozen Phase 6 contract (`encryptedPayload`/`payloadNonce`/
+  `proofHash`); never presented as a verified proof.
+- **Stellar client** (`lib/stellar/client.ts`) — testnet Soroban
+  `buildAndSubmitPrivatePayment` (server-signed, intentId in the tx memo),
+  `getContractEvents`, `fundWithFriendbot`.
+- **Validation** (`lib/validation/payments.ts`) — strict `createPaymentSchema`
+  (amount kept as a decimal string), `listPaymentsQuerySchema` (limit clamped to
+  100), `corridorFor`.
+- **Idempotency** (`lib/idempotency.ts`) — tenant-scoped Redis Idempotency-Key
+  cache.
+- **Payment service** (`lib/payments/service.ts`) — `createPayment` (shield →
+  Soroban submit → `Payment(PENDING)` + `ONCHAIN` leg as Prisma `Decimal` →
+  enqueue), `listPayments` (cursor pagination), `getPaymentById`,
+  `enqueueReconcile`; all tenant-scoped via `forTenant`.
+- **Routes** — `POST`/`GET /api/payments`, `GET /api/payments/[id]`,
+  `POST /api/payments/[id]/retry-reconcile` (session + CSRF + Idempotency-Key,
+  `force-dynamic`).
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (87 passing, 1
+guarded MinIO test skipped), and `next build` all green. Stellar SDK + queue are
+mocked in tests (never hit testnet/Redis); the payment-service tests run against
+the real dev DB and assert tenant isolation + `Decimal` storage.
+
+**Notes / deviations:**
+- Added a `pnpm.overrides` for **`ioredis` → 5.10.1**: BullMQ pins exactly
+  5.10.1 while our `^5.4.2` resolved to 5.11.1, so the `Redis` instance didn't
+  match BullMQ's `ConnectionOptions` type. The override dedupes to one copy.
+- `payments/service.ts` casts the `payment.create` data to
+  `Prisma.PaymentUncheckedCreateInput` (covers the `forTenant` tenantId
+  injection + the AES `Buffer`→`Bytes` strictness in one assertion).
+- `listPaymentsQuerySchema.limit` transforms (clamps) to 100 rather than `.max()`
+  rejecting, per the plan's "clamps to 100" intent.
+- Extended `test/helpers/db.ts#resetDb` to delete `ViewKey`/`AnchorConfig`/
+  `ApiKey`/`Session` before tenants (the Phase 0 seed's ViewKey FK blocked the
+  wipe). Generated-client imports point at `.../generated/prisma/client` (no
+  index in the generated dir).
+
+---
+
 ## [Phase 2] Crypto, Storage & API Keys — #3
 
 At-rest cryptography, tenant ViewKey storage, the S3/MinIO abstraction, and
