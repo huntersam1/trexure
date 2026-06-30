@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { JSX } from "react";
+import type { Route } from "next";
 import { Icon } from "@/components/ui/Icon";
 
 const NAV = [
@@ -28,7 +29,7 @@ export function Sidebar({ username, role }: { username: string; role: "ADMIN" | 
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={item.href as Route}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 active
@@ -43,7 +44,7 @@ export function Sidebar({ username, role }: { username: string; role: "ADMIN" | 
         })}
         {role === "ADMIN" && (
           <Link
-            href="/admin"
+            href={"/admin" as Route}
             aria-current={isActive("/admin") ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
               isActive("/admin")
