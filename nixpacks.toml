@@ -1,0 +1,10 @@
+# nixpacks.toml — shared build for both the web and worker services.
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+# pnpm 10 via corepack (the version is pinned by package.json "packageManager").
+cmds = ["corepack enable", "corepack prepare pnpm@10.6.4 --activate", "pnpm install --frozen-lockfile"]
+
+[variables]
+NPM_CONFIG_PRODUCTION = "false"
