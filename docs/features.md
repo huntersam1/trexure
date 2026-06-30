@@ -5,6 +5,47 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 6] ZK Shield/Decrypt Layer — #7
+
+The ZK differentiator: `lib/zk` wrappers over the (vendored) forked-SPP stack,
+real on-chain proof verification, and the server-side decrypt endpoint. No
+circuits authored; proof verification is never mocked.
+
+- **SPP isolation** (`lib/zk/spp-client.ts`) — lazy WASM-prover load
+  (`isSppAvailable`/`sppProve`), tenant view-key resolution (`getShieldKey`),
+  and `sppVerifyOnChain` (a **real** Soroban simulate call to the Groth16
+  verifier `ZK_CONTRACT_ID`; a simulation error throws — never silently passes).
+  Vendoring documented in `vendor/spp/README.md` + a `.gitmodules` placeholder.
+- **Public surface** (`lib/zk/index.ts`) — frozen `ShieldedPayload`, `shield`
+  (real SPP path **or** a clearly-labeled AES-wrap fallback under the tenant view
+  key, SPEC §14.5), `decryptWithViewKey` (server-side AES-256-GCM),
+  `verifyProofOnChain` (delegates to the real on-chain verify). Replaces the
+  Phase 3 stub (now removed) — `lib/payments/service` auto-uses it via `@/lib/zk`.
+- **`decryptSchema`** (`lib/validation/zk.ts`) — `.strict()`.
+- **`POST /api/payments/[id]/decrypt`** — `requireSession` + `assertCsrf`,
+  tenant-scoped lookup, `loadViewKey` → `decryptWithViewKey`, audit-log
+  `viewkey.decrypt`; the view key is zeroized, never returned, never logged.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (143 passing, 1
+guarded MinIO test skipped), and `next build` all green. `shield → decrypt`
+round-trips; a wrong view key fails (tag mismatch); `verifyProofOnChain` invokes
+the on-chain path (asserted, not bypassed). **End-to-end:** a payload shielded
+under the seed tenant's real view key and stored on a payment decrypts via the
+HTTP endpoint (session + CSRF) → `200` returning the exact payload,
+`viewKeyDisclosed:false`, and a `viewkey.decrypt` audit row written.
+
+**Notes / deviations:**
+- Added `types/spp.d.ts` (`declare module "@trexure/spp"`) so the dynamic import
+  of the not-yet-wired vendored prover typechecks (runtime try/catch → fallback).
+- Task 5 adaptation: in our Phase 3, `shield` is called inside
+  `lib/payments/service.ts` (not the route) — both import `@/lib/zk`, so swapping
+  `lib/zk/index.ts` to the real impl wires it with no route/service change; the
+  orphaned `lib/zk/stub.ts` was removed.
+- `sppVerifyOnChain` casts the simulation `retval` (`unknown`) to the
+  `scValToNative` parameter type; spp-client test mocks use `vi.hoisted()`.
+
+---
+
 ## [Phase 5] Worker & Reconciliation — #6
 
 The reconciliation engine: a standalone BullMQ worker, the order-independent

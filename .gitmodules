@@ -1,0 +1,4 @@
+[submodule "vendor/spp/upstream"]
+	path = vendor/spp/upstream
+	url = https://example.invalid/REPLACE-with-forked-SPP-url
+	branch = main
