@@ -5,6 +5,48 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 7] Frontend Shell & Payment Lifecycle — #8
+
+The authenticated app shell, brand component library, and the four-state
+payment lifecycle (Shield → Decrypt → Reconcile → Receipt), all wired to the
+Phase 1/3/4/5/6 APIs and styled strictly from BRAND.md (Plum & Gold, semantic
+tokens only, mono for hashes/amounts/refs, motion with `prefers-reduced-motion`).
+
+- **Shell & primitives** — `app/(app)/layout.tsx` (session-guarded sidebar +
+  scroll main), `components/ui/{Icon,Button,KpiStat,CopyButton,StatusBadge,Stepper}`,
+  `components/shell/{Sidebar,DemoReplayButton}`, motion/icon/scrollbar CSS.
+- **Pure logic (TDD)** — `lib/ui/status.ts` (BRAND §8 status→badge mapping),
+  `lib/ui/stepper.ts` (node state + fill math), `lib/ui/{types,format}.ts`.
+- **Data + client** — `lib/data/payments.ts` (server-only tenant-scoped reads),
+  `lib/api/client.ts` (CSRF-aware `apiGet`/`apiPost`), `lib/validation/payment-ui.ts`.
+- **Routes** — `/login` (form + server action), `/` dashboard (KPI strip +
+  recent payments + Demo Replay placeholder), `/payments` (filter + pagination),
+  `/payments/new` (create form → `POST /api/payments`), `/payments/[id]`
+  (the four-beat `PaymentLifecycle` orchestrator: `PublicLedgerView` →
+  `EnclavePanel` decrypt → `ReconciliationRow` line-draw → `ReceiptPanel`, with
+  gated steps + Advanced drawer), `/receipts/[id]` (standalone shareable receipt).
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (157 passing, 1
+guarded MinIO test skipped — includes new React component tests under jsdom),
+and `next build` all green; all routes present (`/`, `/login`, `/payments`,
+`/payments/[id]`, `/payments/new`, `/receipts/[id]`).
+
+**Notes / deviations:**
+- vitest config: added `*.test.tsx` to `include` and jsdom + @testing-library/react;
+  component tests use a per-file `// @vitest-environment jsdom` docblock so the
+  node/DB suites keep their node environment.
+- `EnclavePanel` reads `res.payload` — the Phase 6 decrypt route returns
+  `{ payload, proofHash, privacy }`, not the bare payload the plan assumed.
+- Removed Phase 0's placeholder `app/page.tsx` (it conflicted with the authed
+  dashboard at `app/(app)/page.tsx`; both resolved to `/`, and the static
+  placeholder was winning — now the dynamic dashboard owns `/`).
+- `Sidebar` casts the forward-referenced `/settings` and `/admin` hrefs to
+  `Route` (those pages land in Phase 8; `typedRoutes` rejects unknown routes at
+  build time even though plain `tsc` passes).
+- Dropped an unused `truncateHash` import the plan included in `ReceiptPanel`.
+
+---
+
 ## [Phase 6] ZK Shield/Decrypt Layer — #7
 
 The ZK differentiator: `lib/zk` wrappers over the (vendored) forked-SPP stack,
