@@ -72,6 +72,6 @@ export function middleware(req: NextRequest): NextResponse {
 }
 
 export const config = {
-  // Run on everything except Next static assets / image optimizer / favicon.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Run on everything except Next static assets / image optimizer / favicon / public fonts.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|fonts/).*)"],
 };
