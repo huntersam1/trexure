@@ -5,6 +5,32 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Real Zero-Knowledge Proofs (Groth16 on Soroban testnet)
+
+Replaced the placeholder ZK story (AES + a SHA-256 hash, with the real
+prover/verifier not wired) with a **genuine** zero-knowledge proof system.
+
+- **Circuit + setup** — `zk/circuits/commit.circom` (knowledge-of-opening of a
+  public commitment), compiled over **BLS12-381**; Groth16 trusted setup via
+  snarkjs (`zk/artifacts/`).
+- **On-chain verifier** — a Soroban contract (`zk/verifier/`) running the Groth16
+  multi-pairing check with BLS12-381 host functions, **deployed to testnet**
+  (`zk/deploy.json`).
+- **Prover + bridge** — `lib/zk/groth16.ts` (real snarkjs proving + the
+  snarkjs→Soroban byte encoding, locked by brute-forcing a known-good proof).
+- **App integration** — `POST /api/payments/[id]/verify-proof` regenerates the
+  proof from the tenant view key and verifies it on-chain; surfaced by a
+  **"Verify proof on-chain"** button. The seed binds the sample payment's
+  `proofHash` to the real commitment. `shield` does real proving when
+  `ZK_PROVING=live`, else a labeled fallback that never fakes verification.
+- **Runnable proof** — `pnpm zk:demo`: a fresh proof verified live on testnet,
+  with a tampered statement rejected (`false`).
+
+**Verification:** `typecheck`/`lint`/`build` green; suite green (added
+`lib/zk/commit.test.ts`); live `verify-proof` → `{ verified: true }`. See `docs/zk.md`.
+
+---
+
 ## [Phase 9] Demo Replay, Export & Deploy — #10 (final phase)
 
 The demo orchestration, failure path, PDF export, Railway deploy config, and the

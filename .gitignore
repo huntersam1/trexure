@@ -24,3 +24,9 @@ coverage/
 
 # typescript incremental build info
 *.tsbuildinfo
+
+# ZK local toolchain + build intermediates (artifacts/ + contract are committed)
+.localbin/
+.stellar/
+zk/build/
+zk/verifier/target/
