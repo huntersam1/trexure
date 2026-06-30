@@ -6,6 +6,7 @@ import { getPaymentDetail, getReceiptJson } from "@/lib/data/payments";
 import { CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
 import { PaymentLifecycle } from "@/components/lifecycle/PaymentLifecycle";
 import { DemoReplayController } from "@/components/demo/DemoReplayController";
+import { RetryReconcileButton } from "@/components/payments/RetryReconcileButton";
 import { SAMPLE_INTENT_ID } from "@/lib/demo/replay";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,14 @@ export default async function PaymentDetailPage({
             recipientRef={payment.id}
             csrfToken={csrfToken}
           />
+        </div>
+      )}
+      {payment.status === "FAILED" && (
+        <div className="rounded-lg border border-error/30 bg-error-container/40 p-stack-md flex items-center justify-between gap-stack-md">
+          <span className="text-body-sm text-error font-medium">
+            Payout failed. Reconciliation did not complete.
+          </span>
+          <RetryReconcileButton paymentId={payment.id} csrfToken={csrfToken} />
         </div>
       )}
       <PaymentLifecycle payment={payment} initialReceipt={receipt} csrfToken={csrfToken} />
