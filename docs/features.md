@@ -5,6 +5,53 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 9] Demo Replay, Export & Deploy — #10 (final phase)
+
+The demo orchestration, failure path, PDF export, Railway deploy config, and the
+SPEC §15 acceptance map — the finishing layer over the full spine.
+
+- **Demo reset** (`lib/demo/reset.ts` + `POST /api/payments/[id]/demo-reset`) —
+  idempotent reset of the sample payment (drop FIAT leg + receipt → PENDING,
+  keep the on-chain leg) so replay can repeat.
+- **Demo Replay controller** (`components/demo/DemoReplayController.tsx`) — paced
+  4-beat orchestration (reset → decrypt → mock payout → poll until SETTLED →
+  receipt), wired into the dashboard and the sample payment page; drives RSC
+  re-reads via `router.refresh()`.
+- **Failure path** — `RetryReconcileButton` shown on `FAILED`, plus an
+  integration test proving a FAILED leg fails the payment and a reset-then-RECEIVED
+  leg settles.
+- **Receipt PDF export** (`lib/pdf/receipt.ts`, `POST /api/payments/[id]/receipt/pdf`)
+  — server renders the §6.4 receipt with `pdfkit` → `lib/storage` → signed URL,
+  wired into the receipt page (`pdfkit` added to `serverExternalPackages`).
+- **Railway deploy config** — `railway.json`/`railway.web.json`/`railway.worker.json`,
+  `nixpacks.toml`, `scripts/release.sh` (migrate deploy + guarded one-time seed),
+  `docs/deploy/railway.md`.
+- **CI notes + SPEC §15 acceptance map** (`docs/ci/notes.md`) + an AGENT §8
+  view-key-never-serialized test; **demo-day runbook** (`docs/demo/runbook.md`).
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (188 passing, 1
+guarded MinIO test skipped), and `next build` all green. `worker:prod` (tsx)
+boots and writes the Redis heartbeat; `/api/health` → `ok`.
+
+**Notes / deviations:**
+- **CSRF correctness fix:** the Phase 7 payment-detail page issued a *fresh*
+  CSRF token (which wouldn't match the login-set `__Host-trexure_csrf` cookie);
+  switched it (and all new islands) to read the cookie value. Demo/retry/export
+  buttons take a `csrfToken` prop (not the plan's nonexistent meta tag).
+- **Task 5 skipped** — DB+Redis+worker-heartbeat in `/api/health` was already
+  delivered by Phase 5, and Phase 8's HealthPanel consumes that shape; the plan's
+  rewrite would have broken it.
+- **Worker prod via `tsx`** (`worker:prod`) instead of `node dist/...`: the worker
+  imports `lib/` through the `@/*` alias, which a plain `tsc` build can't resolve
+  at runtime. `tsx` resolves the paths + `react-server` condition.
+- `vitest.config` kept as-is (the plan's `include: tests/**` would have dropped
+  all co-located suites; its global DB-wipe `setup.ts` would have destabilized
+  passing tests). PDF export wired through `ReceiptActions` rather than two
+  separate button components. `FAILED` is terminal in our matcher, so the
+  failure-path recovery runs through a reset.
+
+---
+
 ## [Phase 8] Admin, Settings & API-Key UI — #9
 
 Tenant Settings (write-only ViewKey, anchor config, webhook-secret rotation),
