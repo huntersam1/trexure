@@ -1,15 +1,24 @@
 import type { JSX } from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { getDashboardKpis } from "@/lib/data/payments";
 import { KpiStat } from "@/components/ui/KpiStat";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DemoReplayButton } from "@/components/shell/DemoReplayButton";
+import { DemoReplayController } from "@/components/demo/DemoReplayController";
+import { SAMPLE_INTENT_ID } from "@/lib/demo/replay";
+import { requireSession } from "@/lib/auth/session";
+import { forTenant } from "@/lib/db";
+import { CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
 import { formatCorridor, formatDate, formatMoney } from "@/lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage(): Promise<JSX.Element> {
   const kpis = await getDashboardKpis();
+  const user = await requireSession();
+  const sample = await forTenant(user.tenantId).payment.findFirst({ where: { intentId: SAMPLE_INTENT_ID } });
+  const csrfToken = (await cookies()).get(CSRF_COOKIE_NAME)?.value ?? "";
 
   return (
     <div className="flex flex-col gap-stack-lg">
@@ -18,7 +27,18 @@ export default async function DashboardPage(): Promise<JSX.Element> {
           <h1 className="font-geist text-headline-lg text-on-surface">Treasury Overview</h1>
           <p className="mt-1 text-body-md text-on-surface-variant">Settled volume, in-flight payouts, and recent activity.</p>
         </div>
-        <DemoReplayButton />
+        {sample ? (
+          <DemoReplayController
+            paymentId={sample.id}
+            intentId={sample.intentId}
+            amount={sample.sourceAmount.toString()}
+            currency={sample.targetCurrency}
+            recipientRef={sample.recipientRef}
+            csrfToken={csrfToken}
+          />
+        ) : (
+          <DemoReplayButton />
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-gutter">
