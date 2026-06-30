@@ -5,6 +5,47 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 5] Worker & Reconciliation — #6
+
+The reconciliation engine: a standalone BullMQ worker, the order-independent
+matcher, the §6.4 receipt builder, and the receipt endpoint.
+
+- **Receipt builder** (`lib/reconcile/receipt.ts`) — `buildReceipt(paymentId)`
+  recomputes FX/fees/slippage from on-chain + anchor data into the exact §6.4
+  shape (amounts as decimal **strings**, never JS `number`); idempotent upsert.
+- **Matcher** (`lib/reconcile/matcher.ts`) — `tryReconcile` requires both legs,
+  matches on the intent-id join **plus** corridor **plus** amount-within-1%-FX
+  (never amount alone), settles idempotently (`SETTLED`/`FAILED` terminal),
+  order-independent (fiat-first and chain-first converge), `FAILED` on a failed leg.
+- **Heartbeat + health** (`lib/worker/heartbeat.ts`) — Redis key with TTL;
+  `/api/health` now reports `{ db, redis, worker }` (503 when degraded).
+- **`watch-onchain` job** — polls `getContractEvents` for the payment's
+  intentId topic; on match upserts the `CONFIRMED` ONCHAIN leg + enqueues
+  `reconcile`; capped exponential backoff; timeout → `FAILED`.
+- **`reconcile` job** — thin wrapper over `tryReconcile`, logs the result.
+- **Worker entrypoint** (`worker/index.ts`) — attaches both BullMQ workers,
+  heartbeat interval, graceful SIGTERM/SIGINT shutdown. Worker scripts pass
+  `--conditions=react-server` so `server-only` is a no-op in plain Node.
+- **`GET /api/payments/[id]/receipt`** — session **or** Bearer API key →
+  tenant-scoped §6.4 JSON; problem+json on 401/404.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (134 passing, 1
+guarded MinIO test skipped), and `next build` all green. Reconciliation
+converges for both orderings; double-reconcile is a no-op; intent/amount
+mismatch → `WAITING`; failed leg → `FAILED`. **End-to-end:** `pnpm worker:dev`
+boots, logs `worker started`, writes the heartbeat, and `/api/health` returns
+`{"status":"ok","checks":{"db":true,"redis":true,"worker":true}}`.
+
+**Notes / deviations:**
+- `receipt.ts`/`matcher.ts` import `Prisma` from `.../generated/prisma/client`
+  (the generated dir has no index; the plan's bare `.../generated/prisma`
+  wouldn't resolve).
+- The `tryReconcile` test mock is typed `Promise<"SETTLED"|"WAITING"|"FAILED">`
+  so `mockResolvedValueOnce("WAITING")` typechecks (the plan's `as const`
+  narrowed it to `"SETTLED"`).
+
+---
+
 ## [Phase 4] Webhooks & Mock Anchor — #5
 
 Fiat/chain payout webhook ingestion over a raw-body HMAC contract, plus a
