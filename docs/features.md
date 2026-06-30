@@ -5,6 +5,48 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 2] Crypto, Storage & API Keys — #3
+
+At-rest cryptography, tenant ViewKey storage, the S3/MinIO abstraction, and
+hashed tenant API keys that later phases (3, 5, 6, 8) consume.
+
+- **AES-256-GCM** (`lib/crypto/aes.ts`) — `aesEncrypt`/`aesDecrypt` using
+  `MASTER_ENCRYPTION_KEY`; 12-byte per-call nonce, 16-byte auth tag appended;
+  decrypt verifies the tag (tamper detection).
+- **ViewKey at-rest** (`lib/crypto/viewkey.ts`) — write-only `storeViewKey`
+  (AES-encrypt + upsert) / server-side `loadViewKey` (decrypt, `AppError(404)`
+  if absent); the plaintext key is never serialized into the record or a response.
+- **Storage** (`lib/storage/index.ts`) — S3 client for MinIO (dev) / Railway
+  (prod): `putObject`/`getObject`/`getSignedDownloadUrl` (default 900s TTL)/
+  `ensureBucket`. Added `@aws-sdk/s3-request-presigner`.
+- **API keys** (`lib/auth/api-key.ts`) — `generateApiKey` (`trx_sk_`-prefixed,
+  shown once) + SHA-256 `hashApiKey` (hash-only persistence) + `resolveApiKey`
+  (strips Bearer, looks up non-revoked key, stamps `lastUsedAt`).
+- **Bearer helper** (`lib/auth/bearer.ts`) — `requireApiKey(req)` → tenant scope
+  or `AppError(401)`, for programmatic routes.
+- **Routes** — `POST /api/keys` (session + CSRF + strict Zod + audit
+  `apikey.create`, plaintext returned once) and `DELETE /api/keys/[id]`
+  (tenant-scoped revoke + audit `apikey.revoke`); shared
+  `lib/http/respond.ts#problemFromError` mapper.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (60 passing, 1
+guarded MinIO test skipped), and `next build` all green. AES round-trips and
+detects tamper; ViewKey is never serialized as plaintext; API-key hash
+lookup/revoke work. Real MinIO round-trip (put → get → presigned URL) confirmed
+against the dev stack.
+
+**Notes / deviations:**
+- `viewkey.ts` asserts the AES `Buffer` to `Uint8Array<ArrayBuffer>` at the
+  Prisma `Bytes` boundary (frozen `aesEncrypt` returns `Buffer`; Prisma 7's
+  input type is stricter — the value stays a Buffer at runtime).
+- `app/api/keys/route.ts` casts the `create` data to
+  `Prisma.ApiKeyUncheckedCreateInput` because `forTenant` injects `tenantId` at
+  runtime but the static type still requires it.
+- Test mocks that eagerly reference module-scope vars use `vi.hoisted()`
+  (aes/viewkey/bearer/keys-route) to avoid the vitest TDZ hoisting error.
+
+---
+
 ## [Phase 1] Auth, Sessions & Middleware — #2
 
 The authentication spine. Stacks on Phase 0 (#1).
