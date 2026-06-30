@@ -32,6 +32,11 @@ database, and the cross-cutting libs every later phase consumes.
   placeholder; `503` problem+json when a dependency is down.
 - **Tests (Vitest):** RFC-9457 `problem()`/`AppError` unit tests and the
   SPEC §15 cross-tenant isolation proof (Tenant A cannot read Tenant B).
+- **CI (GitHub Actions)** — `.github/workflows/ci.yml` on push/PR to
+  `main`/`develop`: a `quality` job (postgres:17 + redis:7 services →
+  `prisma generate` → `migrate deploy` → typecheck → lint → test), a `build`
+  job (`next build`), and an informational `audit` job. `packageManager` pinned
+  to `pnpm@10.6.4` for deterministic installs.
 
 **Verification:** `pnpm typecheck`, `pnpm lint`, and `pnpm test` (6 tests) all
 green; `/api/health` returns `200 {"status":"ok",...}` against the dev stack.
