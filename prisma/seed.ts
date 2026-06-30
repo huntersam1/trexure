@@ -23,13 +23,15 @@ function toBytes(src: Uint8Array): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-function aesEncrypt(plaintext: Buffer): {
+function aesEncrypt(
+  plaintext: Buffer,
+  key: Buffer = Buffer.from(process.env.MASTER_ENCRYPTION_KEY ?? "", "base64"),
+): {
   ciphertext: Uint8Array<ArrayBuffer>;
   nonce: Uint8Array<ArrayBuffer>;
 } {
-  const key = Buffer.from(process.env.MASTER_ENCRYPTION_KEY ?? "", "base64");
   if (key.length !== 32) {
-    throw new Error("MASTER_ENCRYPTION_KEY must be 32 bytes (base64) to seed");
+    throw new Error("AES key must be 32 bytes (MASTER_ENCRYPTION_KEY base64 or a view key)");
   }
   const nonce = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
@@ -114,6 +116,9 @@ async function main() {
   // 5) Sample shielded Payment (USD->PHP, $2,500). On-chain leg present, NO
   //    fiat leg yet, so Demo Replay beats 1-2 are ready on first boot and
   //    beats 3-4 trigger the Mock Anchor payout. Idempotent on intentId.
+  // Shield the payload under the tenant's VIEW KEY (not the master key) so the
+  // /decrypt endpoint — which unwraps with loadViewKey — round-trips. Encrypting
+  // under the master key here caused a GCM auth-tag failure (500) on decrypt.
   const shieldedBlob = aesEncrypt(
     Buffer.from(
       JSON.stringify({
@@ -124,6 +129,7 @@ async function main() {
       }),
       "utf8",
     ),
+    viewKeyMaterial,
   );
   const proofHash =
     "0x" + crypto.createHash("sha256").update(shieldedBlob.ciphertext).digest("hex");
