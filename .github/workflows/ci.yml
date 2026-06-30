@@ -130,10 +130,6 @@ jobs:
   audit:
     name: Dependency audit (informational)
     runs-on: ubuntu-latest
-    # Non-blocking: surfaces advisories without wedging CI on transitive highs
-    # we can't yet patch (e.g. axios via @stellar/stellar-sdk). Tighten to a
-    # gating check once upstream ships patched versions.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -149,5 +145,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Audit (high severity)
-        run: pnpm audit --audit-level high
+      # Non-blocking: surfaces advisories without wedging CI on transitive highs
+      # we can't yet patch (e.g. axios via @stellar/stellar-sdk). The step always
+      # succeeds; high-severity findings raise a warning annotation instead.
+      # Tighten to a gating check once upstream ships patched versions.
+      - name: Audit (high severity, non-blocking)
+        run: |
+          if ! pnpm audit --audit-level high; then
+            echo "::warning title=Dependency audit::High-severity advisories found (informational). See job log."
+          fi
