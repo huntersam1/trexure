@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "@prisma/adapter-pg",
     "pino",
     "pino-http",
+    "pdfkit",
   ],
   typedRoutes: true,
 };
