@@ -5,6 +5,47 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## [Phase 4] Webhooks & Mock Anchor — #5
+
+Fiat/chain payout webhook ingestion over a raw-body HMAC contract, plus a
+flag-gated Mock Anchor that fires a *real* signed webhook at the real endpoint.
+
+- **Schemas** (`lib/validation/webhooks.ts`) — strict `fiatWebhookSchema`
+  (§8.1 event), `chainWebhookSchema`, `mockPayoutSchema`.
+- **HMAC verifier** (`lib/webhooks/verify.ts`) — `signHmac` + timing-safe
+  `verifyHmac` over the **exact raw bytes** (a re-serialized body must not verify).
+- **`POST /api/webhooks/fiat`** — reads `await req.text()` before parsing; HMAC
+  verify → Zod → idempotency via `WebhookEvent(provider, externalId)` (duplicate
+  → 200 no-op) → upsert FIAT leg keyed by `(paymentId, legType)` (`RECEIVED`, or
+  `FAILED` + `Payment.status=FAILED` on `payment.failed`) → enqueue `reconcile`;
+  unverified → logged for admin + 401, no leg; rate-limited.
+- **`POST /api/webhooks/chain`** — same contract, writes the `ONCHAIN` leg
+  (`CONFIRMED`) and backfills `Payment.proofHash` when absent.
+- **Mock Anchor** (`lib/anchor/mock.ts`) — `triggerMockPayout` invents
+  refs/FX/fee, builds a Xendit-shaped event, HMAC-signs it with
+  `ANCHOR_CALLBACK_TOKEN`, and POSTs it to the real `/api/webhooks/fiat`
+  (mock the provider, never the verification path). `import "server-only"`.
+- **Mock routes** — `POST /api/mock-anchor/payout` + `GET /api/mock-anchor/payouts`,
+  gated by `ENABLE_MOCK_ANCHOR` (**404 first**, before any session check).
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` (110 passing, 1
+guarded MinIO test skipped), and `next build` all green. **End-to-end** against
+the dev stack: a signed event POSTed to the real `/api/webhooks/fiat` → `200` +
+a `RECEIVED` FIAT leg in the DB; a duplicate event id → `200` no-op; a bad
+signature → `401`.
+
+**Notes / deviations:**
+- `fiat/route.ts` annotates the shared `legData` with
+  `satisfies Prisma.PaymentLegUncheckedUpdateInput` so the literal `status`
+  isn't object-literal-widened to `string` (which wouldn't match the `LegStatus`
+  enum); the chain route avoids this with `as const`.
+- Test `.mock.calls[0]` indexing uses `!` for `noUncheckedIndexedAccess`.
+- Skipped the plan's `vitest.config.ts` rewrite / `server-only` stub creation —
+  Phase 0 already configured both (the plan's excerpt would have clobbered the
+  richer config).
+
+---
+
 ## [Phase 3] Stellar Client & Payments — #4
 
 The payment spine: a tenant submits a server-signed Soroban private payment that
