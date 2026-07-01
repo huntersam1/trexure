@@ -31,7 +31,7 @@ export default async function DashboardPage(): Promise<JSX.Element> {
           <DemoReplayController
             paymentId={sample.id}
             intentId={sample.intentId}
-            amount={sample.sourceAmount.toString()}
+            amount={(sample.targetAmount ?? sample.sourceAmount).toString()}
             currency={sample.targetCurrency}
             recipientRef={sample.recipientRef}
             csrfToken={csrfToken}

@@ -69,7 +69,9 @@ export function PaymentLifecycle({
     setReconciling(true);
     setStep((s) => Math.max(s, 2));
     try {
-      await apiPost(`/api/mock-anchor/payout`, { intentId: payment.intentId, amount: payment.sourceAmount, currency: payment.targetCurrency, recipientRef: payment.id, delayMs: 1500 }, csrfToken);
+      // Instruct the anchor with the quoted DESTINATION amount (PHP), not the
+      // USD source amount — the webhook's amount is what lands on the receipt.
+      await apiPost(`/api/mock-anchor/payout`, { intentId: payment.intentId, amount: payment.targetAmount ?? payment.sourceAmount, currency: payment.targetCurrency, recipientRef: payment.id, delayMs: 1500 }, csrfToken);
     } catch (e) {
       setReconciling(false);
       setError(e instanceof ApiError ? e.message : "Could not trigger payout.");
