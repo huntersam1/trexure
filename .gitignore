@@ -30,3 +30,6 @@ coverage/
 .stellar/
 zk/build/
 zk/verifier/target/
+
+# recorded demo video (regenerate via `pnpm demo:record`)
+docs/demo/*.mp4
