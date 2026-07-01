@@ -53,7 +53,7 @@ A one-click **Demo Replay** button runs all of this automatically, idempotently,
 
 ![Placeholder: screenshot of the dashboard mid-replay, showing the Shielded badge transitioning to a revealed payload](placeholder-image.png)
 
-[DEMO VIDEO: `docs/demo/trexure-demo.mp4` — screen recording of the payment lifecycle (login → shield → apply view key → trigger payout → auto-reconcile → receipt → real on-chain Groth16 proof verify against the deployed Soroban testnet contract), ~35s. Regenerate anytime with `pnpm demo:record` against a running local stack (see `scripts/record-demo.mjs`). Not committed to git (binary, regeneratable) — render it before presenting.]
+[DEMO VIDEO: `docs/demo/trexure-demo.mp4` (committed) — screen recording of the payment lifecycle (login → shield → apply view key → trigger payout → auto-reconcile → receipt → real on-chain Groth16 proof verify against the deployed Soroban testnet contract), ~35s. Re-record anytime with `pnpm demo:record` against a running local stack (see `scripts/record-demo.mjs`) if the UI changes.]
 
 **Speaker notes:** Let's watch it happen. I'm hitting Demo Replay on the dashboard. First beat — the public view, nothing readable. Second — I apply our view key, and the real payload appears: contractor, USDC, $2,500. Third — I trigger the payout, and watch the reconciliation row stitch the on-chain hash to the bank reference in real time, no human in the loop. Fourth — here's the receipt, and I can export it as a PDF right now. And if a judge wants proof this isn't smoke and mirrors, I can click "Verify proof on-chain" and we'll watch a real zero-knowledge proof get checked by a smart contract on Stellar testnet, live.
 
