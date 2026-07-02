@@ -1,21 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError } from "../../lib/http/problem";
 
-const provisionTenant = vi.fn();
-const createSession = vi.fn();
+const completeSignup = vi.fn();
 const rateLimit = vi.fn();
-const auditCreate = vi.fn();
 
-vi.mock("../../lib/auth/signup", () => ({ provisionTenant }));
-vi.mock("../../lib/auth/session", () => ({ createSession }));
+// The route delegates provision + session + audit to completeSignup (unit-tested
+// against a real DB in test/lib/auth/signup.test.ts); here we assert the route's
+// own responsibility: parse, throttle, delegate, and map results/errors.
+vi.mock("../../lib/auth/signup", () => ({
+  completeSignup,
+  SIGNUP_RATE_LIMIT: { limit: 5, windowSec: 3600 },
+  signupRateLimitKey: (ip: string) => `signup:ip:${ip}`,
+}));
 vi.mock("../../lib/auth/rate-limit", () => ({ rateLimit }));
-vi.mock("../../lib/db", () => ({ prisma: { auditLog: { create: auditCreate } } }));
 vi.mock("../../lib/log", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   rateLimit.mockResolvedValue({ allowed: true, retryAfterSec: 0 });
-  provisionTenant.mockResolvedValue({ tenantId: "t_new", userId: "u_new", samplePaymentId: "p_new" });
+  completeSignup.mockResolvedValue({ tenantId: "t_new", userId: "u_new", samplePaymentId: "p_new" });
 });
 
 const makeReq = (body: unknown, headers: Record<string, string> = {}) =>
@@ -32,16 +35,12 @@ const validBody = {
 };
 
 describe("POST /api/auth/signup", () => {
-  it("provisions, creates a session, audit-logs, and returns 201", async () => {
+  it("delegates to completeSignup and returns 201", async () => {
     const { POST } = await import("../../app/api/auth/signup/route");
     const res = await POST(makeReq(validBody, { "x-forwarded-for": "1.2.3.4" }));
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ ok: true, tenantId: "t_new", samplePaymentId: "p_new" });
-    expect(provisionTenant).toHaveBeenCalledWith(validBody);
-    expect(createSession).toHaveBeenCalledWith("u_new", "1.2.3.4", undefined);
-    expect(auditCreate).toHaveBeenCalledWith({
-      data: { tenantId: "t_new", userId: "u_new", action: "auth.signup", ip: "1.2.3.4" },
-    });
+    expect(completeSignup).toHaveBeenCalledWith(validBody, "1.2.3.4", undefined);
   });
 
   it("rejects a weak password with 422 problem+json before provisioning", async () => {
@@ -49,7 +48,7 @@ describe("POST /api/auth/signup", () => {
     const res = await POST(makeReq({ ...validBody, password: "short" }));
     expect(res.status).toBe(422);
     expect(res.headers.get("content-type")).toContain("application/problem+json");
-    expect(provisionTenant).not.toHaveBeenCalled();
+    expect(completeSignup).not.toHaveBeenCalled();
   });
 
   it("rate-limits signups per IP with 429 + Retry-After", async () => {
@@ -58,21 +57,20 @@ describe("POST /api/auth/signup", () => {
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("1800");
-    expect(provisionTenant).not.toHaveBeenCalled();
+    expect(completeSignup).not.toHaveBeenCalled();
   });
 
-  it("maps a duplicate username to 409 problem+json without a session", async () => {
-    provisionTenant.mockRejectedValueOnce(
+  it("maps a duplicate username to 409 problem+json", async () => {
+    completeSignup.mockRejectedValueOnce(
       new AppError(409, "Username unavailable", "That username is already taken."),
     );
     const { POST } = await import("../../app/api/auth/signup/route");
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(409);
-    expect(createSession).not.toHaveBeenCalled();
   });
 
   it("returns a generic 500 problem+json on unexpected failure (no leakage)", async () => {
-    provisionTenant.mockRejectedValueOnce(new Error("db exploded: secret detail"));
+    completeSignup.mockRejectedValueOnce(new Error("db exploded: secret detail"));
     const { POST } = await import("../../app/api/auth/signup/route");
     const res = await POST(makeReq(validBody));
     expect(res.status).toBe(500);

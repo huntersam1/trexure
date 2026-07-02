@@ -4,28 +4,13 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
-import { issueCsrfToken, CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
+import { issueCsrfToken, CSRF_COOKIE_NAME, assertSameOrigin } from "@/lib/auth/csrf";
 import { prisma } from "@/lib/db";
 import { loginFormSchema } from "@/lib/validation/payment-ui";
 
 export type LoginState = { error: string | null };
 
 const GENERIC = "Invalid username or password.";
-
-function assertSameOrigin(h: Headers): boolean {
-  const site = h.get("sec-fetch-site");
-  if (site && site !== "same-origin" && site !== "same-site") return false;
-  const origin = h.get("origin");
-  const host = h.get("host");
-  if (origin && host) {
-    try {
-      if (new URL(origin).host !== host) return false;
-    } catch {
-      return false;
-    }
-  }
-  return true;
-}
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const h = await headers();

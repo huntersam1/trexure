@@ -22,6 +22,27 @@ export function issueCsrfToken(): string {
   return `${raw}.${sign(raw)}`;
 }
 
+/**
+ * Same-origin guard for server actions (which see request `Headers`, not a full
+ * `Request` — hence a sibling to assertCsrf rather than the same function).
+ * Rejects explicit cross-site fetches and any Origin whose host ≠ the Host header.
+ * Shared by the login and signup actions so the check can't drift between them.
+ */
+export function assertSameOrigin(h: Headers): boolean {
+  const site = h.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "same-site") return false;
+  const origin = h.get("origin");
+  const host = h.get("host");
+  if (origin && host) {
+    try {
+      if (new URL(origin).host !== host) return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 function isWellFormed(token: string): boolean {
   const [raw, sig] = token.split(".");
   if (!raw || !sig) return false;

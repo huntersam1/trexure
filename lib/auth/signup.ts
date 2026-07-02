@@ -1,11 +1,14 @@
 import "server-only";
-import { createCipheriv, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
+import { createSession } from "@/lib/auth/session";
+import { rateLimit } from "@/lib/auth/rate-limit";
 import { aesEncrypt } from "@/lib/crypto/aes";
 import { deriveCommitment, hexCommitment } from "@/lib/zk/commit";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
+import { logger } from "@/lib/log";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { SignupInput } from "@/lib/validation/auth";
 
@@ -15,16 +18,13 @@ import type { SignupInput } from "@/lib/validation/auth";
 const asBytes = (b: Buffer): Uint8Array<ArrayBuffer> => b as unknown as Uint8Array<ArrayBuffer>;
 
 /**
- * AES-256-GCM under an EXPLICIT key (the tenant view key), tag appended —
- * the same on-disk convention as lib/crypto/aes.ts and lib/zk's shield, so
- * the /decrypt endpoint (which unwraps with loadViewKey) round-trips.
+ * Per-IP signup throttle policy. Provisioning is expensive, so it's throttled
+ * harder than login and per-IP only (per-username would leak which usernames
+ * exist before the create runs). Shared by both signup entry points so the
+ * key and policy can't drift — they write the same Redis key.
  */
-function gcmEncryptWithKey(key: Buffer, plaintext: Buffer): { ciphertext: Buffer; nonce: Buffer } {
-  const nonce = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, nonce);
-  const body = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  return { ciphertext: Buffer.concat([body, cipher.getAuthTag()]), nonce };
-}
+export const SIGNUP_RATE_LIMIT = { limit: 5, windowSec: 3600 } as const;
+export const signupRateLimitKey = (ip: string): string => `signup:ip:${ip}`;
 
 export type ProvisionedTenant = {
   tenantId: string;
@@ -57,8 +57,7 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
   // /decrypt round-trips; proofHash is the REAL ZK commitment for this
   // intentId so /verify-proof can regenerate + verify the proof on-chain.
   const intentId = `intent_seed_demo_${randomBytes(12).toString("hex")}`;
-  const shieldedBlob = gcmEncryptWithKey(
-    viewKeyMaterial,
+  const shieldedBlob = aesEncrypt(
     Buffer.from(
       JSON.stringify({
         sender: input.tenantName,
@@ -68,6 +67,7 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
       }),
       "utf8",
     ),
+    viewKeyMaterial, // wrap under the VIEW key so /decrypt (loadViewKey) round-trips
   );
   const proofHash = hexCommitment(deriveCommitment(viewKeyMaterial, intentId).commitment);
 
@@ -127,4 +127,28 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
     }
     throw err;
   }
+}
+
+/**
+ * The shared post-validation, post-rate-limit signup sequence: provision the
+ * tenant, open a session, and write the audit log. Both entry points (the
+ * server action and POST /api/auth/signup) call this so the provisioning +
+ * session + audit-action-name policy lives in exactly one place and can't drift.
+ * Callers own their own validation, rate-limit response shape, and error mapping.
+ */
+export async function completeSignup(
+  input: SignupInput,
+  ip: string,
+  userAgent?: string,
+): Promise<ProvisionedTenant> {
+  const provisioned = await provisionTenant(input);
+  // Session creation and the audit write are independent — run them together.
+  await Promise.all([
+    createSession(provisioned.userId, ip, userAgent),
+    prisma.auditLog.create({
+      data: { tenantId: provisioned.tenantId, userId: provisioned.userId, action: "auth.signup", ip },
+    }),
+  ]);
+  logger.info({ tenantId: provisioned.tenantId, ip }, "auth.signup.success");
+  return provisioned;
 }

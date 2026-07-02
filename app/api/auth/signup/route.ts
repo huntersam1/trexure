@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { signupSchema } from "@/lib/validation/auth";
-import { prisma } from "@/lib/db";
-import { provisionTenant } from "@/lib/auth/signup";
-import { createSession } from "@/lib/auth/session";
+import { completeSignup, SIGNUP_RATE_LIMIT, signupRateLimitKey } from "@/lib/auth/signup";
 import { rateLimit } from "@/lib/auth/rate-limit";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
@@ -25,9 +23,7 @@ export async function POST(req: Request): Promise<Response> {
     return problem(422, "Invalid signup", parsed.error.issues.map((i) => i.message).join("; "));
   }
 
-  // Tenant provisioning is expensive — throttle harder than login (per-IP only;
-  // per-username would leak which usernames exist before the create runs).
-  const ipLimit = await rateLimit(`signup:ip:${ip}`, { limit: 5, windowSec: 3600 });
+  const ipLimit = await rateLimit(signupRateLimitKey(ip), SIGNUP_RATE_LIMIT);
   if (!ipLimit.allowed) {
     const res = problem(429, "Too Many Requests", "Too many signup attempts. Try again later.");
     res.headers.set("Retry-After", String(ipLimit.retryAfterSec));
@@ -35,18 +31,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const provisioned = await provisionTenant(parsed.data);
-
-    await createSession(provisioned.userId, ip, req.headers.get("user-agent") ?? undefined);
-    await prisma.auditLog.create({
-      data: {
-        tenantId: provisioned.tenantId,
-        userId: provisioned.userId,
-        action: "auth.signup",
-        ip,
-      },
-    });
-    logger.info({ tenantId: provisioned.tenantId, ip }, "auth.signup.success");
+    const provisioned = await completeSignup(parsed.data, ip, req.headers.get("user-agent") ?? undefined);
 
     return NextResponse.json(
       { ok: true, tenantId: provisioned.tenantId, samplePaymentId: provisioned.samplePaymentId },
