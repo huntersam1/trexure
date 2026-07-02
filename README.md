@@ -169,6 +169,24 @@ sequenceDiagram
 
 A git submodule points at a not-yet-configured fork of Nethermind's Stellar Private Payments repo — the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
 
+### Live on Stellar testnet
+
+The verifier / `shielded_transfer` contract is deployed and in active use on Stellar
+testnet — every shielded payment records its commitment on-chain as a contract event.
+Browse it on [stellar.expert](https://stellar.expert):
+
+- **Contract:** [`CBCYXVZC…VTSG`](https://stellar.expert/explorer/testnet/contract/CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG)
+- **Deployment tx:** [`2ede3274…eeffd`](https://stellar.expert/explorer/testnet/tx/2ede3274ee67438f37eab547671d9b5e639fc4a0655298cd375e1834cdaaeffd)
+
+Sample `shielded_transfer` transactions we submitted (each is the real on-chain leg of a
+payment that reconciled to a `SETTLED` receipt):
+
+| Payment | Amount | Transaction |
+|---|---|---|
+| Seeded demo (USD→PHP), `intent_seed_demo_usd_php_0001` | 2,500.00 USDC | [`d7e20c08…2d5b`](https://stellar.expert/explorer/testnet/tx/d7e20c085d98b4856bed85ea179b3fa90feb7a6b80c419419e6b70064f2a2d5b) |
+| User-created payment | 1,234.56 USDC | [`d50a067e…66ee1`](https://stellar.expert/explorer/testnet/tx/d50a067ed0d3279db47dfac6db6603de65b7c2e8beee75eef4a4c1d2c3566ee1) |
+| User-created payment | 321.00 USDC | [`afd8d6e9…46ca3`](https://stellar.expert/explorer/testnet/tx/afd8d6e93e13e494a2c8cf9452802a3bc293165ffcec7caa694acc2dbef46ca3) |
+
 ## Tech Stack
 
 **Frontend**
