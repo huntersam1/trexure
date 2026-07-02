@@ -135,4 +135,15 @@ describe("getContractEvents", () => {
     const out = await getContractEvents({ contractId: "C", topic: "intent_9", startLedger: 1 });
     expect(out).toEqual([{ txHash: "tx9", ledger: 700, proofHash: "0xcommitment" }]);
   });
+
+  it("throws on a non-string decoded value instead of persisting '[object Object]'", async () => {
+    // SDK/RPC shape drift: value decodes to an object, not the string commitment.
+    getEvents.mockResolvedValueOnce({
+      events: [{ txHash: "txbad", ledger: 800, value: { _scval: { unexpected: true } } }],
+    });
+    const { getContractEvents } = await import("../../../lib/stellar/client");
+    await expect(
+      getContractEvents({ contractId: "C", topic: "intent_bad", startLedger: 1 }),
+    ).rejects.toThrow(/expected string commitment/i);
+  });
 });

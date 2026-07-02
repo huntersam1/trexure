@@ -113,14 +113,17 @@ export async function getContractEvents(args: {
   });
 
   return (res.events ?? []).map((e: { txHash: string; ledger: number; value: unknown }) => {
-    let proofHash: string;
-    try {
-      const decoded: unknown = scValToNative(e.value as Parameters<typeof scValToNative>[0]);
-      proofHash = typeof decoded === "string" ? decoded : String(decoded);
-    } catch {
-      proofHash = typeof e.value === "string" ? e.value : String(e.value);
+    // Let a decode failure (or an unexpected non-string shape) propagate rather than
+    // swallowing it into "[object Object]" — the contract records a string commitment,
+    // so anything else is SDK/RPC shape drift the watcher should retry, not persist as
+    // a corrupted proofHash.
+    const decoded: unknown = scValToNative(e.value as Parameters<typeof scValToNative>[0]);
+    if (typeof decoded !== "string") {
+      throw new Error(
+        `getContractEvents: expected string commitment, got ${typeof decoded} for tx ${e.txHash}`,
+      );
     }
-    return { txHash: e.txHash, ledger: e.ledger, proofHash };
+    return { txHash: e.txHash, ledger: e.ledger, proofHash: decoded };
   });
 }
 
