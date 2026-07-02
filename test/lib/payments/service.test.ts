@@ -41,6 +41,10 @@ describe("createPayment", () => {
     expect(res.status).toBe("PENDING");
     expect(res.intentId).toMatch(/^intent_/);
     expect(addWatch).toHaveBeenCalledWith("watch-onchain", { paymentId: res.id });
+    // The on-chain submission records the payment's proofHash as the commitment (#31).
+    expect(buildAndSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ commitment: "a".repeat(64) }),
+    );
 
     const row = await prismaForTest.payment.findUnique({
       where: { id: res.id }, include: { legs: true },

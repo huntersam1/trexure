@@ -81,11 +81,13 @@ export async function createPayment(
 
   // 2. Submit the Soroban tx. The intentId — the reconciliation join key — is the
   //    first contract-call argument; the watch-onchain worker matches on contract
-  //    events, never on a tx memo.
+  //    events, never on a tx memo. The proofHash rides along as the recorded
+  //    commitment so the event watch-onchain consumes carries the real value.
   const onchain = await buildAndSubmitPrivatePayment({
     intentId,
     amount: input.amount,
     sourceAsset: input.sourceAsset,
+    commitment: shielded.proofHash,
   });
 
   // 3. Persist Payment + ONCHAIN leg. tenantId is injected by the forTenant() extension

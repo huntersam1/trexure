@@ -5,6 +5,36 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## New payments run end-to-end on testnet (`shielded_transfer`) — #31
+
+Brand-new payments previously died at simulation: the client invoked
+`shielded_transfer` on a contract that only exposed `verify`. Only the seeded
+demo payment could complete its lifecycle.
+
+- **Contract** — added a `shielded_transfer(intent_id, amount, source_asset,
+  commitment)` entrypoint to the Groth16 verifier contract (`zk/verifier/`),
+  publishing a contract event (`topics=(intent_id,)`, `data=commitment`). It is
+  a clearly-labeled **commitment recorder** — no token movement, no
+  notes/nullifiers (future work). Rust unit test covers the event shape.
+- **Deploy** — rebuilt + deployed to testnet:
+  `CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG`
+  (`zk/deploy.json` updated; `verify` behavior unchanged — `pnpm zk:demo`
+  passes against the new id).
+- **Client** — `buildAndSubmitPrivatePayment` now passes the payment's
+  `proofHash` as the recorded commitment; `getContractEvents` filters by the
+  intentId topic as an XDR-encoded ScVal (raw text never matched on the real
+  RPC) and decodes event values via `scValToNative`.
+- **Docs** — README "What's not yet wired", pitch deck "What's next", and
+  `docs/zk.md` updated to reflect the live path + the honest scope.
+
+**Verification:** `typecheck`/`lint`/`test`/`build` + `cargo test` green.
+Live E2E on a fresh local stack: `POST /api/payments` → real testnet tx →
+watch-onchain confirmed from the contract event (stored `proofHash` = the real
+commitment) → mock payout → reconcile → **SETTLED** with receipt and an
+explorer-linkable tx hash.
+
+---
+
 ## Fix: Soroban submission rejected classic memo — #30
 
 Every brand-new payment failed at creation: `buildAndSubmitPrivatePayment`

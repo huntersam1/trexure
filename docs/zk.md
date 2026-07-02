@@ -51,6 +51,16 @@ pnpm zk:demo        # generate a fresh proof, verify on testnet, show tampered �
 Env: `ZK_CONTRACT_ID` (from `zk/deploy.json`), a funded `STELLAR_SOURCE_SECRET`,
 `ZK_PROVING=live` to enable real proving in `shield`.
 
+## The `shielded_transfer` entrypoint (new-payment path)
+
+The same deployed contract also exposes `shielded_transfer(intent_id, amount,
+source_asset, commitment)` — a **commitment recorder** used by new-payment
+submission (`buildAndSubmitPrivatePayment`). It publishes a contract event with
+`topics = (intent_id,)` and `data = commitment` (the payment's `proofHash`);
+the watch-onchain worker confirms the payment from that event. It does NOT move
+tokens and keeps no note/nullifier state — it anchors the payment intent
+on-chain honestly without claiming to be a privacy pool.
+
 ## Rebuild the verifier (optional)
 ```bash
 cd zk/verifier && stellar contract build
