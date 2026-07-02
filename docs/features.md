@@ -31,6 +31,32 @@ shows no console errors and no missing assets.
 
 ---
 
+## New-payment submission enabled by default — #40
+
+The gate from #32 was correct while the `shielded_transfer` contract was
+undeployed. Now that #31/#36 are merged and the create→SETTLED loop runs
+end-to-end on testnet, the SPEC's primary user action ships **on**.
+
+- **Flag flip** — `ENABLE_NEW_PAYMENTS` now defaults to **true** in `lib/env.ts`
+  and `.env.example`. `/payments/new` renders the real form (no `soon` badge)
+  and `POST /api/payments` accepts valid submissions. `false` remains a
+  deploy-time kill switch if the on-chain leg regresses.
+- **Contract drift caveat** — the app resolves the contract from
+  `env.ZK_CONTRACT_ID` only (`zk/deploy.json` is used solely by `pnpm zk:demo`).
+  Documented in `docs/deploy/railway.md` that both `web` and `worker` must carry
+  `ENABLE_NEW_PAYMENTS=true` and the #31 contract id
+  (`CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG`); a stale id
+  reproduces the "non-existent contract function shielded_transfer" failure.
+- **Tests** — new `test/lib/env.test.ts` asserts the default is `true` and that
+  an explicit `false` is still honored. The existing `test/api/payments.test.ts`
+  keeps both the gated-503 and enabled-201 paths covered.
+
+**Verification:** `pnpm ci` green (typecheck/lint/test/audit) + `pnpm build`;
+`pnpm zk:demo` still passes; end-to-end from the UI a brand-new payment reaches
+**SETTLED** with an on-chain leg whose `txHash` resolves on Stellar testnet.
+
+---
+
 ## New Payment flow env-gated until the transfer contract is live — #32
 
 "New Payment" sat in the main nav while submission 500'd (see #29/#30/#31) —
