@@ -42,10 +42,11 @@ const EnvSchema = z.object({
   ANCHOR_PROVIDER: z.enum(["mock-anchor", "xendit"]),
   ANCHOR_CALLBACK_TOKEN: z.string().min(1),
   ENABLE_MOCK_ANCHOR: boolFromString,
-  // Gate for brand-new payment submission (#32). Defaults OFF so the UI never
-  // exposes a flow whose on-chain leg isn't live; flip to "true" once the
-  // shielded_transfer contract is deployed (#31).
-  ENABLE_NEW_PAYMENTS: boolFromString.default(false),
+  // Gate for brand-new payment submission (#32). Defaults ON now that the
+  // shielded_transfer contract is deployed (#31/#36) and the create→SETTLED
+  // loop runs end-to-end on testnet (#40). Set "false" as a deploy-time kill
+  // switch if the on-chain leg regresses.
+  ENABLE_NEW_PAYMENTS: boolFromString.default(true),
 
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
