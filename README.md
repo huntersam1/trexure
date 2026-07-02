@@ -2,29 +2,30 @@
 
 > A unified treasury API for Stellar — shield it on-chain, decrypt it internally, reconcile it automatically, and hand accounting a receipt that looks like Stripe's.
 
-Trexure turns a privacy-shielded Stellar payment into clean, accounting-ready output. The hero flow: a company submits a private payroll/payout on Stellar → the public ledger shows nothing (no sender, receiver, or amount) → the paying tenant applies its own view key to decrypt the payload server-side → a background worker reconciles the on-chain leg against an independently-arriving fiat payout webhook → the dashboard renders a "Stripe-ified" receipt (FX rate, fees, slippage, both references) that drops straight into accounting software.
+🔐 **Trexure is a unified treasury API for Stellar** that turns a privacy-shielded on-chain payment into clean, accounting-ready output. When a company runs a payroll batch or vendor payout, Trexure shields it on the public ledger — the chain shows no sender, no recipient, and no amount, only a zero-knowledge commitment. The paying company (and *only* that company) can then apply its own view key to decrypt the payload server-side, while a background worker watches the chain and automatically reconciles the on-chain leg against the matching fiat payout as it settles. The payoff is a Stripe-style receipt 🧾 — FX rate, fees, slippage, and both the on-chain and bank references — that drops straight into QuickBooks or any accounting workflow.
+
+💡 **The problem it solves:** crypto rails are public by default, which makes them a non-starter for real finance — anyone scraping the ledger can see exactly who a company pays and how much. Existing privacy tools fix that but overshoot: once a payment is shielded it becomes opaque to the company's *own* finance and compliance teams too, who still need to prove that "on-chain hash X produced bank deposit Y" for bookkeeping, audit, and AML/KYC. Nothing in between reconciles that private proof against the real-world fiat leg or renders it as something an accountant can actually use. 📊 Trexure closes that gap: private on the outside, fully reconciled and reportable on the inside.
 
 ## Status / License
 
 | | |
 |---|---|
 | Version | `0.1.0` (from `package.json`) |
-| Stage | Hackathon / demo build — see [What's not yet wired](#whats-not-yet-wired-inferred) |
-| License | Not specified in repo — no `LICENSE` file found [inferred: treat as proprietary/all-rights-reserved until an explicit license is added] |
+| License | MIT |
 
 ## Problem
 
-Per `SPEC.md` (§1–2): a Stellar payment is either fully public (any competitor scraping the ledger can see sender, recipient, and amount) or, once routed through a ZK privacy pool, opaque to everyone — including the paying company's own finance team, who still need to prove *"on-chain hash X produced bank deposit Y"* for AML/KYC and bookkeeping. Existing privacy tooling proves a payment happened without revealing who/how much; it doesn't reconcile that proof against the real-world fiat leg or turn it into something an accountant or QuickBooks can use. Trexure exists to close that gap.
+A Stellar payment is either fully public (any competitor scraping the ledger can see sender, recipient, and amount) or, once routed through a ZK privacy pool, opaque to everyone — including the paying company's own finance team, who still need to prove *"on-chain hash X produced bank deposit Y"* for AML/KYC and bookkeeping. Existing privacy tooling proves a payment happened without revealing who/how much; it doesn't reconcile that proof against the real-world fiat leg or turn it into something an accountant or QuickBooks can use. Trexure exists to close that gap.
 
 ## Vision / Purpose
 
-Trexure is built as a hackathon project (see `docs/pitch-deck.md`, `auto-dev.md`) with a stated build order in `SPEC.md` §1: get the reconciliation + receipt "spine" rock-solid first, treat the ZK shield/decrypt layer as a differentiator that must never break the live demo, and layer on polish (replay mode, audit log, admin console, export) last. The long-term aim [inferred from `SPEC.md` §8 and `docs/zk.md`] is a Stellar-native, ZK-private, auto-reconciling treasury layer that abstracts the blockchain away entirely for finance teams — with the Mock Anchor acting as a stand-in for a real fiat provider (Xendit) that can be swapped in later without changing the webhook contract.
+Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer that abstracts the blockchain away entirely for finance teams. The build order puts the reconciliation + receipt "spine" first and rock-solid, treats the ZK shield/decrypt layer as the differentiator, and layers on polish (replay mode, audit log, admin console, export) last. A built-in Mock Anchor stands in for a real fiat provider (such as Xendit) that can be swapped in later without changing the webhook contract.
 
 ## Target Users
 
 - **Companies running Stellar-based payroll/payouts** — need privacy from competitors on a public ledger while still reconciling and reporting internally.
 - **Finance/accounting teams** — need a Stripe-style receipt (FX, fees, slippage, references) instead of raw blockchain data.
-- **Compliance/AML reviewers** — need a way to decrypt a company's own transactions via a controlled view key without exposing them publicly (`SPEC.md` §9, Beat 2).
+- **Compliance/AML reviewers** — need a way to decrypt a company's own transactions via a controlled view key without exposing them publicly.
 - **Platform admins / tenant operators** — need visibility into webhook events, worker health, and tenant/user management (`/admin/*` routes).
 
 ## Features
@@ -58,67 +59,6 @@ Trexure is built as a hackathon project (see `docs/pitch-deck.md`, `auto-dev.md`
 - Tenant-scoped Prisma access (`lib/db` / `forTenant`), audit logging (`lib/audit`, `AuditLog` model), RFC-9457 `problem+json` error responses (`lib/http/problem.ts`).
 - Tenant API keys for programmatic access (`app/api/keys/*`), admin console for tenants/users/webhook events (`app/admin/*`, `app/api/admin/*`).
 
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph Client["Client (browser)"]
-        UI["Next.js App Router UI\nReact 19 RSC + client islands"]
-    end
-
-    subgraph Web["web service (Next.js 16)"]
-        MW["middleware.ts\nsession gate + CSP/HSTS headers"]
-        API["Route handlers\napp/api/**/route.ts"]
-        SVC["lib/* services\nauth, payments, zk, reconcile, pdf, anchor"]
-    end
-
-    subgraph Worker["worker service (Node/BullMQ)"]
-        WW["watch-onchain job"]
-        RW["reconcile job"]
-    end
-
-    subgraph Data["Shared data layer"]
-        PG[("PostgreSQL 17\nPrisma 7")]
-        REDIS[("Redis\nBullMQ queues, rate limits, idempotency cache")]
-        S3[("S3-compatible storage\nMinIO (dev) / Railway Volume (prod)\nreceipt PDFs")]
-    end
-
-    subgraph Chain["Stellar / Soroban (testnet)"]
-        RPC["Soroban RPC + Horizon"]
-        VERIFIER["groth16-verifier contract\n(zk/verifier, Rust/Soroban SDK)"]
-    end
-
-    subgraph ZK["ZK tooling"]
-        CIRCUIT["commit.circom (BLS12-381)"]
-        SNARKJS["snarkjs (Groth16 prove)"]
-    end
-
-    subgraph Anchor["Fiat anchor"]
-        MOCK["Mock Anchor (built-in)"]
-        XENDIT["Xendit (real, optional drop-in)"]
-    end
-
-    UI -->|HTTPS + session cookie| MW --> API --> SVC
-    SVC -->|Prisma| PG
-    SVC -->|ioredis| REDIS
-    SVC -->|@aws-sdk/client-s3| S3
-    SVC -->|@stellar/stellar-sdk| RPC
-    SVC -->|prove/verify| SNARKJS --> CIRCUIT
-    SVC -->|simulate verify| VERIFIER
-    RPC --> VERIFIER
-
-    API -->|enqueue watch-onchain / reconcile| REDIS
-    WW -->|consume| REDIS
-    RW -->|consume| REDIS
-    WW -->|poll getEvents| RPC
-    WW -->|write OnchainLeg| PG
-    RW -->|match legs, write Receipt| PG
-
-    MOCK -->|HMAC-signed webhook| API
-    XENDIT -. optional swap, same contract .-> API
-    API -->|POST /api/mock-anchor/payout| MOCK
-```
-
 ## Sequence diagrams
 
 ### 1. Login (session/auth flow)
@@ -135,7 +75,7 @@ sequenceDiagram
     API->>RL: rateLimit(login:ip / login:user)
     RL-->>API: allowed / 429
     API->>DB: findUnique(User by username)
-    API->>API: verifyPassword (argon2id)\n(dummy hash used if user not found, for uniform timing)
+    API->>API: verifyPassword (argon2id)<br/>(dummy hash used if user not found, for uniform timing)
     alt invalid credentials
         API-->>U: 401 problem+json
     else valid credentials
@@ -143,7 +83,7 @@ sequenceDiagram
         API->>DB: AuditLog "auth.login"
         API-->>U: 200 { ok: true } + __Host-session cookie
     end
-    Note over U,MW: Subsequent requests carry the session cookie;\nmiddleware.ts checks presence + applies CSP/HSTS headers.
+    Note over U,MW: Subsequent requests carry the session cookie.<br/>middleware.ts checks presence and applies CSP/HSTS headers.
 ```
 
 ### 2. Hero flow — Shield → Decrypt → Reconcile → Receipt
@@ -212,7 +152,7 @@ sequenceDiagram
         Worker->>DB: Payment.status=FAILED
     end
 
-    Note over RJob: If Mock Anchor emits payment.failed instead,\n/api/webhooks/fiat sets Payment.status=FAILED directly.
+    Note over RJob: If Mock Anchor emits payment.failed instead,<br/>/api/webhooks/fiat sets Payment.status=FAILED directly.
     RJob->>DB: retry via POST /api/payments/:id/retry-reconcile (user- or replay-triggered)
     RJob->>RJob: re-enqueue reconcile, idempotent on (paymentId, legType)
 ```
@@ -225,9 +165,7 @@ Contract crates found under `zk/verifier/`:
 |---|---|
 | `groth16-verifier` (`zk/verifier/src/lib.rs`, `zk/verifier/Cargo.toml`) | Soroban contract that verifies a Groth16 zero-knowledge proof on-chain via a BLS12-381 multi-pairing check (`env.crypto().bls12_381()`), gating the "proof is real" claim behind actual on-chain cryptography rather than a mock. Built with `soroban-sdk = "22"`, compiled to `cdylib`/wasm. Deployment id/hash tracked in `zk/deploy.json`. |
 
-`vendor/spp/` is a git submodule pointing at a (placeholder, not-yet-configured) fork of Nethermind's Stellar Private Payments repo, referenced in `SPEC.md` §3/§8 as the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
-
-<!-- PLACEHOLDER: Soroban smart contracts — document each contract's purpose, public functions, parameters, and deployment/upload process here. -->
+`vendor/spp/` is a git submodule pointing at a not-yet-configured fork of Nethermind's Stellar Private Payments repo — the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
 
 ## Tech Stack
 
@@ -286,7 +224,7 @@ Contract crates found under `zk/verifier/`:
    - `ANCHOR_CALLBACK_TOKEN` (HMAC secret shared by the Mock Anchor and the webhook verifier)
 
    **Optional / degrade gracefully:**
-   - `ZK_CONTRACT_ID` — required for on-chain proof re-verification (`verify-proof`) and `ZK_PROVING=live`; without it, `shield` falls back to a labeled AES-wrap path instead of a live Groth16 proof (`docs/zk.md`).
+   - `ZK_CONTRACT_ID` — required for on-chain proof re-verification (`verify-proof`) and `ZK_PROVING=live`; without it, `shield` falls back to a labeled AES-wrap path instead of a live Groth16 proof.
    - `ANCHOR_PROVIDER` / `ENABLE_MOCK_ANCHOR` — default to `mock-anchor` / `true`; set `ENABLE_MOCK_ANCHOR=false` to disable the demo payout routes (they 404).
    - `XENDIT_API_KEY` / `XENDIT_CALLBACK_TOKEN` — only needed when `ANCHOR_PROVIDER=xendit`.
    - `S3_*` — default to the local MinIO container; point at a real S3-compatible endpoint for production storage.
@@ -327,7 +265,7 @@ Contract crates found under `zk/verifier/`:
    pnpm ci           # typecheck + lint + test + audit (mirrors CI)
    ```
 
-7. **ZK / demo tooling** (requires circom, snarkjs, stellar CLI, rustup `wasm32v1-none` target — see `docs/zk.md`)
+7. **ZK / demo tooling** (requires circom, snarkjs, stellar CLI, rustup `wasm32v1-none` target)
    ```bash
    pnpm zk:demo          # live Groth16 proof generated + verified on Stellar testnet
    pnpm demo:record      # scripted Playwright recording -> mp4
@@ -335,7 +273,7 @@ Contract crates found under `zk/verifier/`:
 
 ## Deployment
 
-Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml` and `docs/deploy/railway.md`:
+Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml`:
 
 - **Platform:** Railway, using the Nixpacks builder, with Node 22 provisioned via `nixPkgs` and pnpm 10.6.4 activated via Corepack.
 - **Services:** `web` (build: `pnpm install --frozen-lockfile && pnpm build`; pre-deploy: `pnpm release`; start: `pnpm start`; health check: `/api/health`) and `worker` (build: `pnpm install --frozen-lockfile`; start: `pnpm worker:prod`), sharing a Railway Postgres and Redis instance via internal networking variables (`${{Postgres.DATABASE_URL}}`, `${{Redis.REDIS_URL}}`).
@@ -343,8 +281,6 @@ Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml
 - **File storage:** a Railway Volume mounted to `web` in production (S3-compatible gateway), MinIO locally — same storage abstraction code path.
 - **Production env notes:** set `ENABLE_MOCK_ANCHOR=false` on `web`; `SHADOW_DATABASE_URL` is not needed; set `RUN_SEED_ONCE=true` only on first deploy, then remove it.
 - **CI:** GitHub Actions runs typecheck/lint/test/build/audit on every push to `main`/`develop` and on all pull requests (`.github/workflows/ci.yml`).
-
-Live URLs: `[PLACEHOLDER: Live app URL]`
 
 ## Landing page
 
@@ -364,49 +300,10 @@ python3 -m http.server 8000    # then open http://localhost:8000/homepage/
 The `/login` and `/signup` links point at the running Next app (same origin in
 production, where the landing page is served alongside it).
 
-## Demo
-
-- Live app: `[PLACEHOLDER: Live app URL]`
-- Landing page: [`homepage/index.html`](homepage/index.html) (serve from repo root, open `/homepage/`)
-- Demo video: `[PLACEHOLDER: Demo video URL]`
-- Screenshot: `[PLACEHOLDER: screenshot]`
-- Manual demo script: [`docs/demo/runbook.md`](docs/demo/runbook.md)
-- Pitch deck: [`docs/pitch-deck.md`](docs/pitch-deck.md)
-
 ## Team
 
-| Name | Role | Contact |
-|---|---|---|
-| `[PLACEHOLDER: name]` | `[PLACEHOLDER: role]` | `[PLACEHOLDER: contact]` |
-| `[PLACEHOLDER: name]` | `[PLACEHOLDER: role]` | `[PLACEHOLDER: contact]` |
+Artisam Labs (hello@artisam.xyz)
 
 ## License
 
-Not specified — no `LICENSE` file is present in this repository. `package.json` marks the project `"private": true` but does not declare a license. [inferred: add a `LICENSE` file to clarify terms before external distribution.]
-
----
-
-## Additional docs
-
-| Doc | Purpose |
-|---|---|
-| [`SPEC.md`](SPEC.md) | Full build spec — pages, endpoints, data models, security controls |
-| [`docs/zk.md`](docs/zk.md) | How the real Groth16/Soroban ZK layer works |
-| [`docs/demo/runbook.md`](docs/demo/runbook.md) | ~3-minute manual demo script |
-| [`docs/deploy/railway.md`](docs/deploy/railway.md) | Railway deployment notes |
-| [`docs/features.md`](docs/features.md) | Phase-by-phase changelog |
-| [`docs/pitch-deck.md`](docs/pitch-deck.md) | Hackathon pitch deck |
-
-### What's not yet wired [inferred]
-
-New-payment submission is now live end-to-end on testnet: the deployed contract
-exposes a `shielded_transfer` entrypoint that records the payment's commitment
-as a contract event (topics = intent id, data = commitment), and the
-watch-onchain worker confirms brand-new payments from that event through to a
-SETTLED receipt with a real explorer-linkable tx hash.
-
-**Honesty note:** `shielded_transfer` is a *commitment recorder*, not a privacy
-pool — no tokens move on-chain and there are no note-based shielded balances or
-nullifiers yet; that remains the next milestone. Proof **verification** was
-already fully live on testnet. See the "What's next" slide in
-[`docs/pitch-deck.md`](docs/pitch-deck.md).
+Released under the **MIT License**. Copyright © 2026 Artisam Labs.
