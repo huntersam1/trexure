@@ -13,13 +13,19 @@ export const DEMO_FX_RATES: Record<string, string> = {
   "USD:PHP": "56.70",
 };
 
+/** Quoted FX rate for a corridor as a decimal string, or null if unquoted. */
+export function quoteFxRate(corridorFrom: string, corridorTo: string): string | null {
+  if (corridorFrom === corridorTo) return "1.00";
+  return DEMO_FX_RATES[`${corridorFrom}:${corridorTo}`] ?? null;
+}
+
 /** Quoted destination-currency amount for a corridor, or null if unquoted. */
 export function quoteTargetAmount(
   sourceAmount: string | { toString(): string },
   corridorFrom: string,
   corridorTo: string,
 ): string | null {
-  const rate = DEMO_FX_RATES[`${corridorFrom}:${corridorTo}`];
+  const rate = quoteFxRate(corridorFrom, corridorTo);
   if (!rate) return null;
   return new D(sourceAmount.toString()).mul(rate).toFixed(2);
 }
