@@ -85,6 +85,7 @@ Set every key from [`.env.example`](../../.env.example) on **both** `web` and
 **Intended staging/production flag values**
 - [ ] `ENABLE_MOCK_ANCHOR=false` — the `/api/mock-anchor/*` demo payout routes 404 in prod.
 - [ ] `ENABLE_NEW_PAYMENTS=true` on **both** `web` and `worker` — the SPEC's primary flow ships on (default as of #40); the two services must agree.
+- [ ] `ZK_PROVING=live` on **both** `web` and `worker` — default (#46); user-created payments carry a real Groth16 commitment so "Verify proof on-chain" works for everyone. Needs `zk/artifacts/*` + a funded `STELLAR_SOURCE_SECRET`; `fallback` is the offline/CI escape hatch (never fakes verification).
 - [ ] `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` (≥ 12 chars) / `SEED_ADMIN_TENANT` — only needed for the first-deploy seed.
 
 ---
