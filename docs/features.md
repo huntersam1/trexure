@@ -27,6 +27,75 @@ card (no form); badge visible.
 
 ---
 
+## Fix: New Payment CSRF 403 (duplicate cookie) — #29
+
+The New Payment server action (`app/(app)/payments/new/actions.ts`) forwarded
+the browser's cookie jar and *appended* a freshly issued CSRF cookie, so the
+header carried two `__Host-trexure_csrf` cookies; `readCsrfCookie()` picked the
+stale login-time one and `assertCsrf()` rejected every submission with 403
+"Invalid CSRF token."
+
+- **Fix** — new `forwardedCookieHeader()` helper in `lib/auth/csrf.ts` drops any
+  existing CSRF cookie from the jar before appending the fresh double-submit
+  token; the action now uses it.
+- **Tests** — regression coverage in `lib/auth/csrf.test.ts` for the
+  duplicate-cookie scenario and the helper's dedupe behavior.
+
+**Verification:** `typecheck`/`lint`/`test`/`build` green.
+
+---
+
+## New payments run end-to-end on testnet (`shielded_transfer`) — #31
+
+Brand-new payments previously died at simulation: the client invoked
+`shielded_transfer` on a contract that only exposed `verify`. Only the seeded
+demo payment could complete its lifecycle.
+
+- **Contract** — added a `shielded_transfer(intent_id, amount, source_asset,
+  commitment)` entrypoint to the Groth16 verifier contract (`zk/verifier/`),
+  publishing a contract event (`topics=(intent_id,)`, `data=commitment`). It is
+  a clearly-labeled **commitment recorder** — no token movement, no
+  notes/nullifiers (future work). Rust unit test covers the event shape.
+- **Deploy** — rebuilt + deployed to testnet:
+  `CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG`
+  (`zk/deploy.json` updated; `verify` behavior unchanged — `pnpm zk:demo`
+  passes against the new id).
+- **Client** — `buildAndSubmitPrivatePayment` now passes the payment's
+  `proofHash` as the recorded commitment; `getContractEvents` filters by the
+  intentId topic as an XDR-encoded ScVal (raw text never matched on the real
+  RPC) and decodes event values via `scValToNative`.
+- **Docs** — README "What's not yet wired", pitch deck "What's next", and
+  `docs/zk.md` updated to reflect the live path + the honest scope.
+
+**Verification:** `typecheck`/`lint`/`test`/`build` + `cargo test` green.
+Live E2E on a fresh local stack: `POST /api/payments` → real testnet tx →
+watch-onchain confirmed from the contract event (stored `proofHash` = the real
+commitment) → mock payout → reconcile → **SETTLED** with receipt and an
+explorer-linkable tx hash.
+
+---
+
+## Fix: Soroban submission rejected classic memo — #30
+
+Every brand-new payment failed at creation: `buildAndSubmitPrivatePayment`
+attached the reconciliation `intentId` via `Memo.text`, and the stellar-sdk
+rejects classic memos on Soroban transactions at `prepareTransaction`.
+
+- **Fix** — the Soroban tx no longer carries a memo (`lib/stellar/client.ts`);
+  the `intentId` already travels as the first contract-call argument and the
+  watch-onchain worker matches on contract events, so reconciliation is
+  unaffected. The optional user memo now rides in the shielded payload only
+  (`lib/payments/service.ts`).
+- **Docs** — stale "intentId in the tx memo" claims corrected in `README.md`,
+  `SPEC.md`, and code comments.
+- **Tests** — regression test asserting no memo is ever attached.
+
+**Verification:** `typecheck`/`lint`/`test` green; live testnet probe passes
+`prepareTransaction` (next failure is the missing `shielded_transfer` contract
+function — tracked in #31).
+
+---
+
 ## Real Zero-Knowledge Proofs (Groth16 on Soroban testnet)
 
 Replaced the placeholder ZK story (AES + a SHA-256 hash, with the real

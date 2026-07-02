@@ -41,6 +41,10 @@ describe("createPayment", () => {
     expect(res.status).toBe("PENDING");
     expect(res.intentId).toMatch(/^intent_/);
     expect(addWatch).toHaveBeenCalledWith("watch-onchain", { paymentId: res.id });
+    // The on-chain submission records the payment's proofHash as the commitment (#31).
+    expect(buildAndSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ commitment: "a".repeat(64) }),
+    );
 
     const row = await prismaForTest.payment.findUnique({
       where: { id: res.id }, include: { legs: true },
@@ -48,6 +52,9 @@ describe("createPayment", () => {
     // Stored as Prisma.Decimal, NOT a JS number.
     expect(row!.sourceAmount).toBeInstanceOf(Prisma.Decimal);
     expect(row!.sourceAmount.toString()).toBe("2500");
+    // Quoted destination amount (2500 x 56.70) stored at creation so the
+    // payout instruction and receipt FX stay coherent.
+    expect(row!.targetAmount?.toString()).toBe("141750");
     expect(row!.corridorFrom).toBe("USD");
     expect(row!.corridorTo).toBe("PHP");
     expect(row!.proofHash).toBe("a".repeat(64));

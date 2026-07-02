@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
-import { issueCsrfToken, CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
+import { issueCsrfToken, forwardedCookieHeader } from "@/lib/auth/csrf";
 import { env } from "@/lib/env";
 import { createPaymentFormSchema } from "@/lib/validation/payment-ui";
 
@@ -29,16 +29,17 @@ export async function createPaymentAction(_prev: CreateState, formData: FormData
 
   // Call the documented Phase 3 route handler so the Soroban submit + enqueue path runs.
   // The fresh CSRF token is sent as BOTH the double-submit cookie (the route's
-  // assertCsrf reads __Host-trexure_csrf) and the x-csrf-token header.
-  const cookieHeader = (await cookies()).toString();
+  // assertCsrf reads __Host-trexure_csrf) and the x-csrf-token header; the jar's
+  // login-time CSRF cookie is dropped so the name isn't duplicated (#29).
   const csrf = issueCsrfToken();
+  const cookieHeader = forwardedCookieHeader((await cookies()).getAll(), csrf);
   const res = await fetch(`${env.APP_URL}/api/payments`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-csrf-token": csrf,
       origin: env.APP_URL,
-      cookie: `${cookieHeader}; ${CSRF_COOKIE_NAME}=${csrf}`,
+      cookie: cookieHeader,
     },
     body: JSON.stringify(parsed.data),
   });

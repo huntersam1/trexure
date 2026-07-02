@@ -43,6 +43,7 @@ export type PaymentDetail = {
   sourceAsset: string;
   sourceAmount: string;
   targetCurrency: string;
+  targetAmount: string | null; // quoted destination amount — decimal string
   corridorFrom: string;
   corridorTo: string;
   createdAt: string;

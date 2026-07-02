@@ -6,9 +6,9 @@ import {
   Contract,
   TransactionBuilder,
   Networks,
-  Memo,
   BASE_FEE,
   nativeToScVal,
+  scValToNative,
 } from "@stellar/stellar-sdk";
 import { env } from "../env";
 import { logger } from "../log";
@@ -24,14 +24,18 @@ const sourceKeypair = (): Keypair => Keypair.fromSecret(env.STELLAR_SOURCE_SECRE
 
 /**
  * Build, server-sign (STELLAR_SOURCE_SECRET) and submit a Soroban private-payment tx.
- * The intentId is carried in the tx memo (Memo.text) — the reconciliation join key.
+ * The intentId — the reconciliation join key — travels as the first contract-call
+ * argument; the contract publishes an event (topics=(intentId,), data=commitment)
+ * that watch-onchain confirms against. Soroban transactions reject classic memos,
+ * so none is attached (#30).
  * Returns the testnet tx hash, settling ledger, and the ZK contract id used.
  */
 export async function buildAndSubmitPrivatePayment(args: {
   intentId: string;
   amount: string;
   sourceAsset: string;
-  memo: string;
+  /** The payment's proofHash — recorded on-chain as the event payload (#31). */
+  commitment: string;
 }): Promise<{ txHash: string; ledger: number; contractId: string }> {
   const contractId = env.ZK_CONTRACT_ID;
   const keypair = sourceKeypair();
@@ -43,6 +47,7 @@ export async function buildAndSubmitPrivatePayment(args: {
     nativeToScVal(args.intentId, { type: "string" }),
     nativeToScVal(args.amount, { type: "string" }),
     nativeToScVal(args.sourceAsset, { type: "string" }),
+    nativeToScVal(args.commitment, { type: "string" }),
   );
 
   let tx = new TransactionBuilder(account, {
@@ -50,7 +55,6 @@ export async function buildAndSubmitPrivatePayment(args: {
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(operation)
-    .addMemo(Memo.text(args.memo))
     .setTimeout(60)
     .build();
 
@@ -87,7 +91,10 @@ export async function buildAndSubmitPrivatePayment(args: {
 
 /**
  * Wrap Soroban RPC getEvents for a contract/topic from a starting ledger.
- * Maps raw events into the reconciliation shape [{txHash, ledger, proofHash}].
+ * The topic filter is the intentId as an XDR-encoded ScVal string (the RPC
+ * matches base64 ScVals, not raw text), and the event value decodes to the
+ * commitment the contract recorded — mapped to the reconciliation shape
+ * [{txHash, ledger, proofHash}].
  */
 export async function getContractEvents(args: {
   contractId: string;
@@ -100,16 +107,24 @@ export async function getContractEvents(args: {
       {
         type: "contract",
         contractIds: [args.contractId],
-        topics: [[args.topic]],
+        topics: [[nativeToScVal(args.topic, { type: "string" }).toXDR("base64")]],
       },
     ],
   });
 
-  return (res.events ?? []).map((e: { txHash: string; ledger: number; value: unknown }) => ({
-    txHash: e.txHash,
-    ledger: e.ledger,
-    proofHash: typeof e.value === "string" ? e.value : String(e.value),
-  }));
+  return (res.events ?? []).map((e: { txHash: string; ledger: number; value: unknown }) => {
+    // Let a decode failure (or an unexpected non-string shape) propagate rather than
+    // swallowing it into "[object Object]" — the contract records a string commitment,
+    // so anything else is SDK/RPC shape drift the watcher should retry, not persist as
+    // a corrupted proofHash.
+    const decoded: unknown = scValToNative(e.value as Parameters<typeof scValToNative>[0]);
+    if (typeof decoded !== "string") {
+      throw new Error(
+        `getContractEvents: expected string commitment, got ${typeof decoded} for tx ${e.txHash}`,
+      );
+    }
+    return { txHash: e.txHash, ledger: e.ledger, proofHash: decoded };
+  });
 }
 
 /**

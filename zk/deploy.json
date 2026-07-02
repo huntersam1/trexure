@@ -1,10 +1,18 @@
 {
   "network": "testnet",
   "networkPassphrase": "Test SDF Network ; September 2015",
-  "contractId": "CCQCCOOWXKM6CF2N7FQJC2W27ZG43JOKB7IPYTCAVZC7EQ7CPIJWVE5R",
-  "wasmHash": "63a07f341f512f5cef92035133466d6b4db4ae72d279b1dca060a0459d3d4644",
+  "contractId": "CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG",
+  "wasmHash": "987b8f516cb389cd97d9fd0806f57993d36811b7c93a0dce10dadd07e5c5dc14",
   "rpcUrl": "https://soroban-testnet.stellar.org",
-  "encoding": { "endianness": "big-endian", "fp2Order": "c1c0", "negateA": "off-chain" },
+  "encoding": {
+    "endianness": "big-endian",
+    "fp2Order": "c1c0",
+    "negateA": "off-chain"
+  },
   "circuit": "commit.circom (commitment = secret^2 + blinding, BLS12-381)",
-  "deployer": "GA6N25U5KNP667K6B2HTZH3BQG6AKYNNYS3BWS4FHZ7IV2QWIBI3P6CQ"
+  "deployer": "GA6N25U5KNP667K6B2HTZH3BQG6AKYNNYS3BWS4FHZ7IV2QWIBI3P6CQ",
+  "entrypoints": [
+    "verify",
+    "shielded_transfer"
+  ]
 }

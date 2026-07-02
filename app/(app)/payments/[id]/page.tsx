@@ -34,7 +34,7 @@ export default async function PaymentDetailPage({
           <DemoReplayController
             paymentId={payment.id}
             intentId={payment.intentId}
-            amount={payment.sourceAmount}
+            amount={payment.targetAmount ?? payment.sourceAmount}
             currency={payment.targetCurrency}
             recipientRef={payment.id}
             csrfToken={csrfToken}
