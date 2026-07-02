@@ -5,10 +5,20 @@ import { createPayment, listPayments } from "../../../lib/payments/service";
 import { createPaymentSchema, listPaymentsQuerySchema } from "../../../lib/validation/payments";
 import { getCachedIdempotent, setCachedIdempotent } from "../../../lib/idempotency";
 import { problem, AppError } from "../../../lib/http/problem";
+import { env } from "../../../lib/env";
 
 export const dynamic = "force-dynamic"; // never cache authenticated/tenant data
 
 export async function POST(req: Request): Promise<Response> {
+  // Gate FIRST (mirrors the mock-anchor route): while the shielded transfer
+  // contract isn't live, submission is a clear 503, never an unhandled 500 (#32).
+  if (!env.ENABLE_NEW_PAYMENTS) {
+    return problem(
+      503,
+      "New payments unavailable",
+      "New payment submission is disabled while the shielded transfer contract is being deployed. Existing payments and the Demo Replay are unaffected.",
+    );
+  }
   try {
     const user = await requireSession();
     assertCsrf(req);

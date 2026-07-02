@@ -5,6 +5,28 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## New Payment flow env-gated until the transfer contract is live — #32
+
+"New Payment" sat in the main nav while submission 500'd (see #29/#30/#31) —
+a judge could hit an unhandled error on the most inviting button in the UI.
+
+- **Flag** — `ENABLE_NEW_PAYMENTS` (default **false**; flip to `true` once the
+  `shielded_transfer` contract from #31 is deployed). No code churn to re-enable.
+- **API** — `POST /api/payments` returns a clear **503 problem+json**
+  ("New payments unavailable") when gated off — gate runs first, so no
+  unhandled 500 is reachable. GET/list unaffected.
+- **UI** — `/payments/new` renders an explanatory card ("Shielded transfer
+  contract — in progress") with a Demo Replay link instead of the form; the
+  sidebar nav item gets a `soon` badge with a tooltip. Seeded Demo Replay
+  unaffected.
+- **Tests** — gated 503 route test; Sidebar badge tests (jsdom).
+
+**Verification:** `typecheck`/`lint`/`test`/`build` green. Live check with the
+flag off: POST → `503 application/problem+json`; `/payments/new` renders the
+card (no form); badge visible.
+
+---
+
 ## Real Zero-Knowledge Proofs (Groth16 on Soroban testnet)
 
 Replaced the placeholder ZK story (AES + a SHA-256 hash, with the real
