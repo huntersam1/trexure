@@ -31,33 +31,37 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 ## Features
 
 **Payments & privacy**
-- Multi-tenant payment creation, listing, and detail view (`app/api/payments/route.ts`, `app/api/payments/[id]/route.ts`), tenant-scoped via `forTenant()`.
-- ZK-shielded payload storage (`encryptedPayload`, `payloadNonce`, `proofHash` on `Payment`) with a Soroban private-payment submission path (`lib/stellar/client.ts`, `buildAndSubmitPrivatePayment`).
-- Server-side view-key decrypt (`POST /api/payments/[id]/decrypt`) — key is loaded, used, zeroized, and never returned to the client or logged; the action is audit-logged.
+- Multi-tenant payment creation, listing, and detail views, tenant-scoped per request.
+- ZK-shielded payload storage (encrypted payload, nonce, and proof hash on each payment) with a Soroban private-payment submission path.
+- Server-side view-key decrypt (`POST /api/payments/[id]/decrypt`) — the key is loaded, used, zeroized, and never returned to the client or logged; the action is audit-logged.
 - On-chain Groth16 proof re-verification (`POST /api/payments/[id]/verify-proof`), backed by a real Soroban BLS12-381 pairing check (see [Smart Contracts](#smart-contracts)).
 
 **Reconciliation**
-- HMAC-verified fiat webhook ingestion (`app/api/webhooks/fiat/route.ts`) reading the **raw** body for signature verification, with idempotency via a `(provider, externalId)` unique constraint.
-- BullMQ worker jobs: `watch-onchain` (polls Soroban RPC for the payment's contract/topic, with backoff) and `reconcile` (matches on-chain + fiat legs by `intentId`, sets `SETTLED`, generates a receipt) — `worker/index.ts`, `worker/jobs/*`.
+- HMAC-verified fiat webhook ingestion (`POST /api/webhooks/fiat`) reading the **raw** body for signature verification, with idempotency via a `(provider, externalId)` unique constraint.
+- BullMQ worker jobs: `watch-onchain` (polls Soroban RPC for the payment's contract/topic, with backoff) and `reconcile` (matches on-chain + fiat legs by `intentId`, sets `SETTLED`, generates a receipt).
 - Retry path: `POST /api/payments/[id]/retry-reconcile` re-enqueues reconciliation for a `FAILED` payment.
 
 **Receipts**
 - Stripe-shaped receipt JSON (`GET /api/payments/[id]/receipt`) with corridor, amounts, FX, fees, slippage, on-chain and fiat references, and a `privacy` block.
-- Server-rendered PDF export via signed URL (`app/api/payments/[id]/receipt/pdf/route.ts`, `lib/pdf/`).
-- Standalone shareable receipt page (`app/(app)/receipts/[id]`).
+- Server-rendered PDF export via signed URL (`GET /api/payments/[id]/receipt/pdf`).
+- Standalone shareable receipt page.
 
 **Demo tooling**
-- Mock Anchor (`lib/anchor/mock.ts`, `app/api/mock-anchor/*`) simulates a fiat payout provider and fires the *same* signed webhook a real anchor would, gated by `ENABLE_MOCK_ANCHOR`.
-- Demo Replay / Demo Reset (`app/api/payments/[id]/demo-reset/route.ts`, `lib/demo/`) runs Shield → Decrypt → Reconcile → Receipt against the seeded sample payment.
+- Mock Anchor simulates a fiat payout provider and fires the *same* signed webhook a real anchor would, gated by `ENABLE_MOCK_ANCHOR`.
+- Demo Replay / Demo Reset runs Shield → Decrypt → Reconcile → Receipt against the seeded sample payment.
 - `pnpm zk:demo` — generates and verifies a live Groth16 proof on testnet, including a rejected tampered-statement case.
-- `pnpm demo:record` (`scripts/record-demo.mjs`) — scripted Playwright recording of the full lifecycle.
+- `pnpm demo:record` — scripted Playwright recording of the full lifecycle.
 
 **Multi-tenant SaaS spine**
-- Argon2id password auth with anti-enumeration timing and Redis-backed rate limiting (`app/api/auth/login/route.ts`, `lib/auth/`).
-- httpOnly, `__Host-`-prefixed session cookies; CSRF double-submit + origin checks on mutating routes (`middleware.ts`, `lib/auth/csrf.ts`).
-- Strict security headers (CSP with nonces, HSTS, `X-Frame-Options: DENY`, etc.) applied in `middleware.ts`.
-- Tenant-scoped Prisma access (`lib/db` / `forTenant`), audit logging (`lib/audit`, `AuditLog` model), RFC-9457 `problem+json` error responses (`lib/http/problem.ts`).
-- Tenant API keys for programmatic access (`app/api/keys/*`), admin console for tenants/users/webhook events (`app/admin/*`, `app/api/admin/*`).
+- Argon2id password auth with anti-enumeration timing and Redis-backed rate limiting.
+- httpOnly, `__Host-`-prefixed session cookies; CSRF double-submit + origin checks on mutating routes.
+- Strict security headers (CSP with nonces, HSTS, `X-Frame-Options: DENY`, etc.).
+- Tenant-scoped Prisma access, audit logging (`AuditLog` model), RFC-9457 `problem+json` error responses.
+- Tenant API keys for programmatic access, plus an admin console for tenants/users/webhook events (`/admin/*`).
+
+## Architecture
+
+![Trexure architecture — one Railway project runs the web and worker services against shared Postgres and Redis, submitting shielded transfers to Stellar testnet and reconciling the on-chain and fiat legs by intentId into a single receipt.](docs/architecture-diagram.png)
 
 ## Sequence diagrams
 
@@ -159,24 +163,22 @@ sequenceDiagram
 
 ## Smart Contracts
 
-Contract crates found under `zk/verifier/`:
-
-| Crate | Purpose (inferred from source) |
+| Crate | Purpose |
 |---|---|
-| `groth16-verifier` (`zk/verifier/src/lib.rs`, `zk/verifier/Cargo.toml`) | Soroban contract that verifies a Groth16 zero-knowledge proof on-chain via a BLS12-381 multi-pairing check (`env.crypto().bls12_381()`), gating the "proof is real" claim behind actual on-chain cryptography rather than a mock. Built with `soroban-sdk = "22"`, compiled to `cdylib`/wasm. Deployment id/hash tracked in `zk/deploy.json`. |
+| `groth16-verifier` | Soroban contract that verifies a Groth16 zero-knowledge proof on-chain via a BLS12-381 multi-pairing check (`env.crypto().bls12_381()`), gating the "proof is real" claim behind actual on-chain cryptography rather than a mock. Built with `soroban-sdk = "22"`, compiled to `cdylib`/wasm. |
 
-`vendor/spp/` is a git submodule pointing at a not-yet-configured fork of Nethermind's Stellar Private Payments repo — the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
+A git submodule points at a not-yet-configured fork of Nethermind's Stellar Private Payments repo — the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
 
 ## Tech Stack
 
 **Frontend**
 - Next.js `^16.2.0` (App Router, RSC, Turbopack) · React `^19.0.0` / React DOM `^19.0.0`
-- TypeScript `^5.7.0` (strict, per `tsconfig.json`)
+- TypeScript `^5.7.0` (strict)
 - Tailwind CSS `^4.0.0` + `@tailwindcss/postcss`, `@tailwindcss/forms`
 - `lucide-react` (icons) [dev dependency]
 
 **Backend / API**
-- Next.js Route Handlers (`app/api/**/route.ts`)
+- Next.js Route Handlers
 - Zod `^4.0.0` for input validation
 - `argon2` `^0.41.1` (argon2id password hashing)
 - `pino` `^9.5.0` + `pino-http` `^10.3.0` (structured logging)
@@ -281,24 +283,6 @@ Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml
 - **File storage:** a Railway Volume mounted to `web` in production (S3-compatible gateway), MinIO locally — same storage abstraction code path.
 - **Production env notes:** set `ENABLE_MOCK_ANCHOR=false` on `web`; `SHADOW_DATABASE_URL` is not needed; set `RUN_SEED_ONCE=true` only on first deploy, then remove it.
 - **CI:** GitHub Actions runs typecheck/lint/test/build/audit on every push to `main`/`develop` and on all pull requests (`.github/workflows/ci.yml`).
-
-## Landing page
-
-A standalone, dependency-free marketing page lives at
-[`homepage/index.html`](homepage/index.html) — plain HTML + inline CSS, no build
-step and no external network calls, so it renders offline or from any static
-host. It reuses the brand tokens from `app/globals.css` and links to the app's
-`/login` and `/signup` routes plus the demo video.
-
-Open it directly (`file://.../homepage/index.html`) or serve it from the **repo
-root** so the relative demo-video link resolves:
-
-```bash
-python3 -m http.server 8000    # then open http://localhost:8000/homepage/
-```
-
-The `/login` and `/signup` links point at the running Next app (same origin in
-production, where the landing page is served alongside it).
 
 ## Team
 
