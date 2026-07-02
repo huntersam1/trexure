@@ -6,7 +6,6 @@ import {
   Contract,
   TransactionBuilder,
   Networks,
-  Memo,
   BASE_FEE,
   nativeToScVal,
 } from "@stellar/stellar-sdk";
@@ -24,14 +23,15 @@ const sourceKeypair = (): Keypair => Keypair.fromSecret(env.STELLAR_SOURCE_SECRE
 
 /**
  * Build, server-sign (STELLAR_SOURCE_SECRET) and submit a Soroban private-payment tx.
- * The intentId is carried in the tx memo (Memo.text) — the reconciliation join key.
+ * The intentId — the reconciliation join key — travels as the first contract-call
+ * argument and surfaces via contract events; Soroban transactions reject classic
+ * memos, so none is attached (#30).
  * Returns the testnet tx hash, settling ledger, and the ZK contract id used.
  */
 export async function buildAndSubmitPrivatePayment(args: {
   intentId: string;
   amount: string;
   sourceAsset: string;
-  memo: string;
 }): Promise<{ txHash: string; ledger: number; contractId: string }> {
   const contractId = env.ZK_CONTRACT_ID;
   const keypair = sourceKeypair();
@@ -50,7 +50,6 @@ export async function buildAndSubmitPrivatePayment(args: {
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(operation)
-    .addMemo(Memo.text(args.memo))
     .setTimeout(60)
     .build();
 

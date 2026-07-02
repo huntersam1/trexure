@@ -5,6 +5,27 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Fix: Soroban submission rejected classic memo — #30
+
+Every brand-new payment failed at creation: `buildAndSubmitPrivatePayment`
+attached the reconciliation `intentId` via `Memo.text`, and the stellar-sdk
+rejects classic memos on Soroban transactions at `prepareTransaction`.
+
+- **Fix** — the Soroban tx no longer carries a memo (`lib/stellar/client.ts`);
+  the `intentId` already travels as the first contract-call argument and the
+  watch-onchain worker matches on contract events, so reconciliation is
+  unaffected. The optional user memo now rides in the shielded payload only
+  (`lib/payments/service.ts`).
+- **Docs** — stale "intentId in the tx memo" claims corrected in `README.md`,
+  `SPEC.md`, and code comments.
+- **Tests** — regression test asserting no memo is ever attached.
+
+**Verification:** `typecheck`/`lint`/`test` green; live testnet probe passes
+`prepareTransaction` (next failure is the missing `shielded_transfer` contract
+function — tracked in #31).
+
+---
+
 ## Real Zero-Knowledge Proofs (Groth16 on Soroban testnet)
 
 Replaced the placeholder ZK story (AES + a SHA-256 hash, with the real
