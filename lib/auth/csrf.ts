@@ -28,6 +28,23 @@ function isWellFormed(token: string): boolean {
   return safeEqual(sig, sign(raw));
 }
 
+/**
+ * Build a cookie header for server-action -> route-handler forwarding.
+ * Any CSRF cookie already in the jar (set at login) must be dropped —
+ * duplicated names make readCsrfCookie pick the stale first entry and
+ * fail the double-submit check (#29).
+ */
+export function forwardedCookieHeader(
+  jar: ReadonlyArray<{ name: string; value: string }>,
+  freshToken: string,
+): string {
+  const parts = jar
+    .filter((c) => c.name !== CSRF_COOKIE_NAME)
+    .map((c) => `${c.name}=${c.value}`);
+  parts.push(`${CSRF_COOKIE_NAME}=${freshToken}`);
+  return parts.join("; ");
+}
+
 function readCsrfCookie(req: Request): string | null {
   const header = req.headers.get("cookie");
   if (!header) return null;
