@@ -74,6 +74,36 @@ function — tracked in #31).
 
 ---
 
+## Self-serve signup — outside users can try Trexure — #33
+
+There was no self-serve registration: users had to be provisioned by an admin
+into an existing tenant, so an outside user (e.g. a hackathon judge) couldn't
+try the product without being handed credentials.
+
+- **Provisioning service** (`lib/auth/signup.ts`) — one transaction creates a
+  Tenant, an ADMIN user (argon2id), a tenant view key (AES-256-GCM under the
+  master key, mirroring `prisma/seed.ts`), a default mock-anchor
+  `AnchorConfig`, and a **demo-ready sample shielded payment** (payload
+  encrypted under the tenant view key; `proofHash` = the real ZK commitment;
+  CONFIRMED on-chain leg, no fiat leg) so Demo Replay runs on first landing.
+- **API** — `POST /api/auth/signup`: zod-validated (admin password policy,
+  min 12 chars), per-IP rate-limited (5/hour — stricter than login),
+  audit-logged (`auth.signup`), session created on success; problem+json
+  errors (422/429/409/500, generic detail — no internals leaked).
+- **UI** — `/signup` page + form mirroring the login screen (same-origin
+  check, CSRF cookie seeded like the login action, field-level errors);
+  `/login` ↔ `/signup` cross-links. Both routes public in the middleware.
+- **Tests** — service-level DB tests (provisioning completeness, duplicate
+  username → 409 with full rollback, `forTenant()` isolation between two
+  signed-up tenants), route tests (201/422/429/409/500), middleware coverage.
+
+**Verification:** `typecheck`/`lint`/`test`/`build` green (60 files, 201
+passed). Live: `POST /api/auth/signup` → session → tenant-scoped payments list
+shows only the new tenant's sample payment → `/decrypt` round-trips under the
+new tenant's own view key.
+
+---
+
 ## Real Zero-Knowledge Proofs (Groth16 on Soroban testnet)
 
 Replaced the placeholder ZK story (AES + a SHA-256 hash, with the real
