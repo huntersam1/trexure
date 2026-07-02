@@ -16,10 +16,19 @@ function masterKey(): Buffer {
   return key;
 }
 
-/** AES-256-GCM. Returns ciphertext with the 16-byte auth tag appended, plus the nonce. */
-export function aesEncrypt(plaintext: Buffer): { ciphertext: Buffer; nonce: Buffer } {
+/**
+ * AES-256-GCM. Returns ciphertext with the 16-byte auth tag appended, plus the nonce.
+ * Encrypts under the master key by default, or an explicit 32-byte key (e.g. a tenant
+ * view key) — the single source of truth for the on-disk convention so callers that
+ * wrap under a non-master key don't hand-roll a divergent copy.
+ */
+export function aesEncrypt(plaintext: Buffer, key?: Buffer): { ciphertext: Buffer; nonce: Buffer } {
+  const encKey = key ?? masterKey();
+  if (encKey.length !== KEY_BYTES) {
+    throw new Error(`AES key must be ${KEY_BYTES} bytes (got ${encKey.length})`);
+  }
   const nonce = randomBytes(NONCE_BYTES);
-  const cipher = createCipheriv("aes-256-gcm", masterKey(), nonce);
+  const cipher = createCipheriv("aes-256-gcm", encKey, nonce);
   const body = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const tag = cipher.getAuthTag();
   return { ciphertext: Buffer.concat([body, tag]), nonce };

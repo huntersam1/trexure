@@ -27,6 +27,11 @@ describe("middleware", () => {
     expect(middleware(req("/api/auth/login")).status).toBe(200);
   });
 
+  it("allows the self-serve signup page and API without a session (#33)", () => {
+    expect(middleware(req("/signup")).status).toBe(200);
+    expect(middleware(req("/api/auth/signup")).status).toBe(200);
+  });
+
   it("redirects an unauthenticated page request to /login", () => {
     const res = middleware(req("/payments"));
     expect(res.status).toBe(307);

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Public = no session required. Webhooks are HMAC-authed in their handlers.
-const PUBLIC_EXACT = new Set(["/login", "/api/auth/login", "/api/health"]);
+const PUBLIC_EXACT = new Set(["/login", "/signup", "/api/auth/login", "/api/auth/signup", "/api/health"]);
 
 function isPublic(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;

@@ -313,7 +313,11 @@ Contract crates found under `zk/verifier/`:
    pnpm dev            # web -> http://localhost:3000
    pnpm worker:dev      # reconciliation worker (separate terminal)
    ```
-   Log in at `/login` with `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`. Use the dashboard's **Demo Replay** button to run the full Shield → Decrypt → Reconcile → Receipt flow.
+   Log in at `/login` with `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`, or create your
+   own isolated workspace at **`/signup`** — self-serve signup provisions a fresh tenant
+   (own view key, mock-anchor config, and a sample shielded payment) so the dashboard
+   demos instantly without repo access or admin intervention. Use the dashboard's
+   **Demo Replay** button to run the full Shield → Decrypt → Reconcile → Receipt flow.
 
 6. **Test / lint / typecheck**
    ```bash
