@@ -5,6 +5,7 @@ import { PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { deriveCommitment, hexCommitment } from "../lib/zk/commit";
 import { quoteTargetAmount } from "../lib/fx";
+import { buildSampleOnchainLeg } from "../lib/payments/sample-onchain-leg";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -166,22 +167,31 @@ async function main() {
     },
   });
 
-  // On-chain leg (idempotent via @@unique([paymentId, legType])).
+  // On-chain leg (idempotent via @@unique([paymentId, legType])). Real
+  // shielded_transfer testnet tx when SEED_ONCHAIN=true + a funded key, else
+  // an offline placeholder — shared with signup so the two can't drift (#45).
+  const onchainLeg = await buildSampleOnchainLeg({
+    intentId: SAMPLE_INTENT_ID,
+    amount: "2500.00",
+    sourceAsset: "USDC",
+    proofHash,
+    placeholderRef: payment.id,
+  });
   await prisma.paymentLeg.upsert({
     where: { paymentId_legType: { paymentId: payment.id, legType: "ONCHAIN" } },
     update: {
-      status: "CONFIRMED",
-      txHash: "demo_tx_" + payment.id.slice(0, 8),
-      ledger: 1234567,
-      contractId: process.env.ZK_CONTRACT_ID ?? "CDEMO_CONTRACT",
+      status: onchainLeg.status,
+      txHash: onchainLeg.txHash,
+      ledger: onchainLeg.ledger,
+      contractId: onchainLeg.contractId,
     },
     create: {
       paymentId: payment.id,
       legType: "ONCHAIN",
-      status: "CONFIRMED",
-      txHash: "demo_tx_" + payment.id.slice(0, 8),
-      ledger: 1234567,
-      contractId: process.env.ZK_CONTRACT_ID ?? "CDEMO_CONTRACT",
+      status: onchainLeg.status,
+      txHash: onchainLeg.txHash,
+      ledger: onchainLeg.ledger,
+      contractId: onchainLeg.contractId,
     },
   });
 

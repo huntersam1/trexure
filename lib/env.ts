@@ -46,6 +46,12 @@ const EnvSchema = z.object({
   // not just the seed. Live proving needs the zk/artifacts/* (present); if they
   // are missing at runtime, `shield` catches and falls back with a clear log.
   ZK_PROVING: z.enum(["live", "fallback"]).default("live"),
+  // Submit a REAL shielded_transfer testnet tx for the seeded/signup sample
+  // payment's on-chain leg (#45). Defaults OFF so `docker compose up && pnpm
+  // db:seed` and CI seeding work offline with a placeholder leg. Enable only
+  // with a funded STELLAR_SOURCE_SECRET; if the real submit fails, the seed
+  // falls back to the placeholder leg with a clear log (never hard-fails).
+  SEED_ONCHAIN: boolFromString.default(false),
 
   ANCHOR_PROVIDER: z.enum(["mock-anchor", "xendit"]),
   ANCHOR_CALLBACK_TOKEN: z.string().min(1),

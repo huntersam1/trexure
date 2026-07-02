@@ -5,6 +5,45 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Real on-chain leg for the sample payment (`SEED_ONCHAIN`) — #45
+
+The sample payment behind Demo Replay (and every self-serve signup's demo
+payment) had a hardcoded **fake** on-chain leg (`demo_tx_…` / `ledger: 1234567`)
+duplicated across `prisma/seed.ts` and `lib/auth/signup.ts` — the one honesty
+caveat a judge could catch. Now the shielded_transfer contract is live (#31/#36,
+#40), so it can be a genuine testnet tx.
+
+- **Guard flag** — `SEED_ONCHAIN` (validated in `lib/env.ts`, default **false**,
+  documented in `.env.example`). When `true` **and** a funded
+  `STELLAR_SOURCE_SECRET` is present, the sample payment submits a REAL
+  `shielded_transfer` tx via `buildAndSubmitPrivatePayment` and records the real
+  `txHash`/`ledger`/`contractId`. Otherwise the offline `demo_tx_…` placeholder
+  is used, so `docker compose up && pnpm db:seed` and CI seeding still work with
+  no network / no key. Logs which path ran (`onchain: real` vs `placeholder`)
+  and falls back to the placeholder (never hard-fails) if the submit errors.
+- **One shared code path** — new `lib/payments/sample-onchain-leg.ts`
+  (`buildSampleOnchainLeg`) is used by **both** the seed and signup, so the leg
+  can't drift; the duplicated hardcoded literals are gone. The seed now runs via
+  `tsx --conditions=react-server` (like the worker) so it can share the
+  server-only-guarded lib modules.
+- **Tradeoff (first cut)** — the real leg is written synchronously as
+  `CONFIRMED` (the submit polls to inclusion and returns a real ledger), rather
+  than `PENDING` + `watch-onchain`. Simpler for the seed; the tx is genuinely
+  confirmed on submission.
+- **Docs** — `docs/deploy/railway.md` + `docs/demo/runbook.md` note
+  `SEED_ONCHAIN=true`.
+- **Tests** — `test/lib/payments/sample-onchain-leg.test.ts`: default placeholder
+  (no submission), real submit when enabled + funded, fallback on submit error,
+  and placeholder when the key isn't a valid secret.
+
+**Verification:** `pnpm run ci` (233 tests) + `pnpm build` + `pnpm zk:demo` green.
+With `SEED_ONCHAIN=true`: the seeded sample payment's on-chain leg is a real tx
+(`f7dd6a72…`, ledger 3393385) that resolves `successful: true` on Stellar
+testnet, and Demo Replay reconciled it (trigger payout → SETTLED) against the
+real hash. Default seeding stays fully offline.
+
+---
+
 ## Real Groth16 proving by default (`ZK_PROVING=live`) — #46
 
 `shield()` only produced a real Groth16 commitment when `ZK_PROVING=live`, and
