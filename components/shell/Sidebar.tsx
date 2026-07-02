@@ -16,11 +16,11 @@ const NAV = [
 export function Sidebar({
   username,
   role,
-  newPaymentsEnabled = true,
+  newPaymentsEnabled,
 }: {
   username: string;
   role: "ADMIN" | "MEMBER";
-  newPaymentsEnabled?: boolean;
+  newPaymentsEnabled: boolean;
 }): JSX.Element {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
