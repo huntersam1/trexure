@@ -37,7 +37,11 @@ vi.mock("@stellar/stellar-sdk", () => {
     Networks: { TESTNET: "Test SDF Network ; September 2015" },
     Memo: { text: (t: string) => ({ _memo: t }) },
     BASE_FEE: "100",
-    nativeToScVal: (v: unknown) => ({ _scval: v }),
+    nativeToScVal: (v: unknown) => ({ _scval: v, toXDR: () => `xdr(${String(v)})` }),
+    scValToNative: (v: unknown) =>
+      typeof v === "object" && v !== null && "_scval" in v
+        ? (v as { _scval: unknown })._scval
+        : v,
   };
 });
 
@@ -63,7 +67,7 @@ describe("buildAndSubmitPrivatePayment", () => {
   it("builds, server-signs and submits a Soroban tx and returns {txHash, ledger, contractId}", async () => {
     const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
     const res = await buildAndSubmitPrivatePayment({
-      intentId: "intent_1", amount: "2500.00", sourceAsset: "USDC",
+      intentId: "intent_1", amount: "2500.00", sourceAsset: "USDC", commitment: "0x" + "c".repeat(64),
     });
     expect(res.txHash).toBe("abc123");
     expect(res.ledger).toBe(555);
@@ -73,7 +77,9 @@ describe("buildAndSubmitPrivatePayment", () => {
 
   it("never attaches a classic memo — Soroban txs reject memos (regression #30)", async () => {
     const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
-    await buildAndSubmitPrivatePayment({ intentId: "intent_1", amount: "1.00", sourceAsset: "USDC" });
+    await buildAndSubmitPrivatePayment({
+      intentId: "intent_1", amount: "1.00", sourceAsset: "USDC", commitment: "0xc0ffee",
+    });
     expect(addMemo).not.toHaveBeenCalled();
   });
 
@@ -81,7 +87,7 @@ describe("buildAndSubmitPrivatePayment", () => {
     sendTransaction.mockResolvedValueOnce({ status: "ERROR", errorResultXdr: "AAAA" });
     const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
     await expect(
-      buildAndSubmitPrivatePayment({ intentId: "i", amount: "1", sourceAsset: "USDC" }),
+      buildAndSubmitPrivatePayment({ intentId: "i", amount: "1", sourceAsset: "USDC", commitment: "0xc" }),
     ).rejects.toThrow(/submission/i);
   });
 });
@@ -103,5 +109,41 @@ describe("getContractEvents", () => {
     expect(getEvents).toHaveBeenCalledWith(
       expect.objectContaining({ startLedger: 500 }),
     );
+  });
+
+  it("filters by the intentId topic as an XDR-encoded ScVal, not raw text (#31)", async () => {
+    getEvents.mockResolvedValueOnce({ events: [] });
+    const { getContractEvents } = await import("../../../lib/stellar/client");
+    await getContractEvents({ contractId: "CCONTRACTID", topic: "intent_1", startLedger: 1 });
+    expect(getEvents).toHaveBeenCalledWith({
+      startLedger: 1,
+      filters: [
+        {
+          type: "contract",
+          contractIds: ["CCONTRACTID"],
+          topics: [["xdr(intent_1)"]],
+        },
+      ],
+    });
+  });
+
+  it("decodes ScVal event values into the proofHash string (#31)", async () => {
+    getEvents.mockResolvedValueOnce({
+      events: [{ txHash: "tx9", ledger: 700, value: { _scval: "0xcommitment" } }],
+    });
+    const { getContractEvents } = await import("../../../lib/stellar/client");
+    const out = await getContractEvents({ contractId: "C", topic: "intent_9", startLedger: 1 });
+    expect(out).toEqual([{ txHash: "tx9", ledger: 700, proofHash: "0xcommitment" }]);
+  });
+
+  it("throws on a non-string decoded value instead of persisting '[object Object]'", async () => {
+    // SDK/RPC shape drift: value decodes to an object, not the string commitment.
+    getEvents.mockResolvedValueOnce({
+      events: [{ txHash: "txbad", ledger: 800, value: { _scval: { unexpected: true } } }],
+    });
+    const { getContractEvents } = await import("../../../lib/stellar/client");
+    await expect(
+      getContractEvents({ contractId: "C", topic: "intent_bad", startLedger: 1 }),
+    ).rejects.toThrow(/expected string commitment/i);
   });
 });
