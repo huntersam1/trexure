@@ -27,6 +27,8 @@ Copy every key from `.env.example`. Use Railway reference variables for managed 
 - `APP_URL=https://<web-public-domain>`
 - `MASTER_ENCRYPTION_KEY`, `CSRF_SECRET`, `STELLAR_SOURCE_SECRET`, `ANCHOR_CALLBACK_TOKEN`, `ZK_CONTRACT_ID` — secrets, set per service (never in `NEXT_PUBLIC_*`).
 - `ENABLE_MOCK_ANCHOR=false` on `web` in prod (the `/api/mock-anchor/*` routes return 404).
+- `ENABLE_NEW_PAYMENTS=true` on **both** `web` and `worker` — this is the default now (#40), so leave it unset or set it explicitly to `true`. Set it to `false` only as a kill switch if the on-chain leg regresses; the `web` service renders the "in progress" card and `POST /api/payments` returns 503 while it's off, so `worker` and `web` should always agree.
+- `ZK_CONTRACT_ID` drift caveat: the app resolves the contract from `env.ZK_CONTRACT_ID` **only** (`zk/deploy.json` is used solely by `pnpm zk:demo`). It must equal the deployed `shielded_transfer` contract — `CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG` (#31, per `zk/deploy.json`) — on both `web` and `worker`. A stale id reproduces the "non-existent contract function shielded_transfer" failure even though `pnpm zk:demo` passes; see `docs/zk.md`.
 - `STELLAR_NETWORK=testnet`, `STELLAR_RPC_URL`, `STELLAR_HORIZON_URL`.
 - Storage: point `S3_ENDPOINT`/`S3_BUCKET`/credentials at the Railway volume gateway.
 
