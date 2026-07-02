@@ -6,6 +6,8 @@ const createPayment = vi.fn();
 const listPayments = vi.fn();
 const idemStore = new Map<string, string>();
 
+const envMock = { ENABLE_NEW_PAYMENTS: true };
+vi.mock("../../lib/env", () => ({ env: envMock }));
 vi.mock("../../lib/auth/session", () => ({ requireSession }));
 vi.mock("../../lib/auth/csrf", () => ({ assertCsrf }));
 vi.mock("../../lib/payments/service", () => ({ createPayment, listPayments, getPaymentById: vi.fn(), enqueueReconcile: vi.fn() }));
@@ -17,6 +19,7 @@ vi.mock("../../lib/idempotency", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   idemStore.clear();
+  envMock.ENABLE_NEW_PAYMENTS = true;
   requireSession.mockResolvedValue({ id: "u1", username: "a", role: "MEMBER", tenantId: "t1" });
 });
 
@@ -30,6 +33,16 @@ const makeReq = (body: unknown, headers: Record<string, string> = {}) =>
 const validBody = { recipientRef: "r", amount: "2500.00", sourceAsset: "USDC", targetCurrency: "PHP", anchorId: "a" };
 
 describe("POST /api/payments", () => {
+  it("returns 503 problem+json (never a 500) when new payments are gated off (#32)", async () => {
+    envMock.ENABLE_NEW_PAYMENTS = false;
+    const { POST } = await import("../../app/api/payments/route");
+    const res = await POST(makeReq(validBody));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({ title: "New payments unavailable" });
+    expect(createPayment).not.toHaveBeenCalled();
+  });
+
   it("creates a payment and returns 201", async () => {
     createPayment.mockResolvedValue({ id: "pay_1", intentId: "intent_1", status: "PENDING" });
     const { POST } = await import("../../app/api/payments/route");

@@ -13,7 +13,15 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
-export function Sidebar({ username, role }: { username: string; role: "ADMIN" | "MEMBER" }): JSX.Element {
+export function Sidebar({
+  username,
+  role,
+  newPaymentsEnabled,
+}: {
+  username: string;
+  role: "ADMIN" | "MEMBER";
+  newPaymentsEnabled: boolean;
+}): JSX.Element {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -39,6 +47,14 @@ export function Sidebar({ username, role }: { username: string; role: "ADMIN" | 
             >
               <Icon name={item.icon} className="text-[20px]" />
               {item.label}
+              {item.href === "/payments/new" && !newPaymentsEnabled && (
+                <span
+                  title="Shielded transfer contract — in progress"
+                  className="ml-auto rounded-full border border-outline-variant px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70"
+                >
+                  soon
+                </span>
+              )}
             </Link>
           );
         })}
