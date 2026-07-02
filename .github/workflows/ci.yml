@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, staging]
   # Run on every PR regardless of base branch so stacked PRs (e.g. phase N
   # targeting phase N-1's branch before it merges to develop) are validated too.
   pull_request:

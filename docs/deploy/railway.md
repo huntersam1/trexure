@@ -2,6 +2,8 @@
 
 One Railway project, four services: `web`, `worker`, managed **Postgres 17**, managed **Redis**, plus a **Volume** mounted to `web`.
 
+> **Deploying?** Follow the step-by-step, checkable [`staging-checklist.md`](staging-checklist.md) — it separates the locally-verifiable steps from the credential-gated ones. This file is the reference for *why* each piece is shaped the way it is.
+
 ## Services & config files
 - `web` → `railway.web.json` (Next.js: `pnpm install --frozen-lockfile && pnpm build`, start `pnpm start`).
 - `worker` → `railway.worker.json` (start `pnpm worker:prod`).

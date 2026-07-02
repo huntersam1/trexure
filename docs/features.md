@@ -5,6 +5,33 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Staging branch + Railway deploy dry-run — #41
+
+The MVP checkpoint treats a `staging` branch as the signal that a deploy is
+being prepared, and the Railway config (`railway.*.json`, `nixpacks.toml`,
+`scripts/release.sh`) had never been exercised. This validates it end-to-end
+locally and documents the runbook.
+
+- **`staging` branch** cut from `develop` and pushed to origin.
+- **Deploy config validated locally** against docker-compose Postgres+Redis,
+  using a throwaway `trexure_staging_dryrun` DB (dev DB untouched):
+  `scripts/release.sh` runs `prisma migrate deploy` + the `RUN_SEED_ONCE`-guarded
+  seed cleanly on a fresh DB (and skips the seed when unset); `pnpm run ci`
+  green; `pnpm build` succeeds; `pnpm worker:prod` boots + heartbeats;
+  `GET /api/health` → `200 {"status":"ok","checks":{"db":true,"redis":true,"worker":true}}`.
+- **`docs/deploy/staging-checklist.md`** — a checkable runbook enumerating every
+  Railway service variable (cross-referenced to `.env.example`), the web/worker
+  start/health/release commands, the volume mount, internal-networking
+  references (`${{Postgres.DATABASE_URL}}` / `${{Redis.REDIS_URL}}`), and the
+  intended `ENABLE_MOCK_ANCHOR=false` + `ENABLE_NEW_PAYMENTS=true` (#40) values.
+  Credential-gated steps (project/DB/Redis/volume/secrets/first deploy) are
+  clearly separated from the automatable ones.
+- **Gotcha documented:** `pnpm ci` collides with pnpm's reserved (unimplemented)
+  `ci` verb — use `pnpm run ci`. GitHub Actions runs the steps individually, so
+  CI is unaffected.
+
+---
+
 ## Public landing page at `homepage/index.html` — #39
 
 The app was login-gated at `/`, so a visitor with no credentials saw only a
