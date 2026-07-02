@@ -5,6 +5,39 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Real Groth16 proving by default (`ZK_PROVING=live`) — #46
+
+`shield()` only produced a real Groth16 commitment when `ZK_PROVING=live`, and
+that flag was read straight from `process.env` (unvalidated, undocumented) with
+the fallback as the effective default. So "Verify proof on-chain" worked on the
+seeded sample payment (its `proofHash` is a real commitment) but **failed on a
+payment a signed-up user created themselves** — the ZK story was only real for
+the seed.
+
+- **Validated + documented** — `ZK_PROVING` is now a `z.enum(["live","fallback"])`
+  in `lib/env.ts` (**default `live`**), documented in `.env.example`, and
+  consumed via `env.ZK_PROVING`. `isSppAvailable()` reads `env.*`, not raw
+  `process.env`.
+- **Real for everyone** — with the default, a user-created payment's `proofHash`
+  is the real `hexCommitment(deriveCommitment(...))`, so on-chain verify passes
+  for the self-serve path, not just the seed.
+- **Safe fallback preserved** — the labeled AES-wrap path is unchanged and never
+  presents a mocked verification as real. Live proving is local snarkjs (no
+  network); if `zk/artifacts/*` are missing at runtime, `shield` catches and
+  falls back with the existing clear log instead of crashing.
+- **Deploy docs** — `docs/deploy/railway.md` + `staging-checklist.md` note
+  `ZK_PROVING=live` on both `web` and `worker`; `docs/zk.md` explains the default
+  and its requirements.
+- **Tests** — `test/lib/env.test.ts` covers the `live` default, an explicit
+  `fallback`, and rejection of an unknown value. `lib/zk/index.test.ts` covers
+  proving-live → real-commitment `proofHash` vs fallback → labeled sha256.
+
+**Verification:** `pnpm run ci` + `pnpm build` green; `pnpm zk:demo` unaffected;
+a user-created payment's "Verify proof on-chain" returned `{ verified: true }` on
+testnet.
+
+---
+
 ## Staging branch + Railway deploy dry-run — #41
 
 The MVP checkpoint treats a `staging` branch as the signal that a deploy is

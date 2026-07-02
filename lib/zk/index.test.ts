@@ -13,7 +13,8 @@ vi.mock("@/lib/zk/spp-client", () => ({
 }));
 
 import { shield, decryptWithViewKey, verifyProofOnChain } from "@/lib/zk";
-import { sppVerifyOnChain } from "@/lib/zk/spp-client";
+import { isSppAvailable, sppVerifyOnChain } from "@/lib/zk/spp-client";
+import { deriveCommitment, hexCommitment } from "@/lib/zk/commit";
 
 describe("shield → decryptWithViewKey", () => {
   it("round-trips the payload", async () => {
@@ -33,6 +34,31 @@ describe("shield → decryptWithViewKey", () => {
     await expect(
       decryptWithViewKey(randomBytes(32), s.encryptedPayload, s.payloadNonce),
     ).rejects.toThrow();
+  });
+});
+
+describe("shield proving-live path (#46)", () => {
+  it("commits proofHash to the REAL Groth16 commitment (verify-on-chain can pass)", async () => {
+    // Proving live: shield runs the real snarkjs prover (local, no network) and
+    // must return the commitment-derived proofHash, not the sha256 fallback.
+    (isSppAvailable as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+    const intentId = "intent_zk_live_test";
+    const s = await shield({ intentId, amount: "10.00" });
+
+    const { commitment } = deriveCommitment(VIEW_KEY, intentId);
+    expect(s.proofHash).toBe(hexCommitment(commitment));
+
+    // still a decryptable payload
+    const recovered = await decryptWithViewKey(VIEW_KEY, s.encryptedPayload, s.payloadNonce);
+    expect(recovered).toEqual({ intentId, amount: "10.00" });
+  });
+
+  it("falls back to the labeled sha256 proofHash when proving is not live", async () => {
+    // default mock is isSppAvailable → false
+    const s = await shield({ intentId: "intent_fallback", amount: "1.00" });
+    const { commitment } = deriveCommitment(VIEW_KEY, "intent_fallback");
+    expect(s.proofHash).not.toBe(hexCommitment(commitment));
+    expect(s.proofHash).toMatch(/^0x[0-9a-f]{64}$/);
   });
 });
 

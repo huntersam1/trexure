@@ -38,6 +38,14 @@ const EnvSchema = z.object({
   STELLAR_HORIZON_URL: z.string().url(),
   STELLAR_SOURCE_SECRET: z.string().min(1),
   ZK_CONTRACT_ID: z.string().min(1),
+  // ZK proving mode for `shield` (#46). "live" generates a REAL Groth16 proof
+  // (snarkjs BLS12-381, local — no network) and stores a real-commitment
+  // proofHash that verify-proof can check on-chain; "fallback" uses the labeled
+  // AES-wrap path (offline/CI escape hatch) which never fakes verification.
+  // Defaults to "live" so user-created payments carry a real commitment too,
+  // not just the seed. Live proving needs the zk/artifacts/* (present); if they
+  // are missing at runtime, `shield` catches and falls back with a clear log.
+  ZK_PROVING: z.enum(["live", "fallback"]).default("live"),
 
   ANCHOR_PROVIDER: z.enum(["mock-anchor", "xendit"]),
   ANCHOR_CALLBACK_TOKEN: z.string().min(1),

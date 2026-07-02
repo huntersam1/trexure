@@ -28,7 +28,7 @@ import { logger } from "@/lib/log";
  * `shield` uses the labeled AES-wrap fallback (no faked verification).
  */
 export async function isSppAvailable(): Promise<boolean> {
-  return Boolean(env.ZK_CONTRACT_ID) && process.env.ZK_PROVING === "live";
+  return Boolean(env.ZK_CONTRACT_ID) && env.ZK_PROVING === "live";
 }
 
 /**

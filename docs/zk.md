@@ -42,6 +42,14 @@ Locked by brute-forcing a known-good proof on-chain (`zk/scripts/onchain-verify.
 - **`shield`** (new payments) generates a real proof when `ZK_PROVING=live`
   (`lib/zk/index.ts`); otherwise it uses a clearly-labeled AES-wrap fallback and
   **never fakes verification**.
+- **`ZK_PROVING` defaults to `live`** (#46), validated in `lib/env.ts` as
+  `"live" | "fallback"` and read via `env.ZK_PROVING` (not raw `process.env`). So
+  a **user-created** payment — not just the seed — gets a real-commitment
+  `proofHash` and its **"Verify proof on-chain"** returns `{ verified: true }`.
+  Live proving needs `zk/artifacts/*` (committed) and a funded
+  `STELLAR_SOURCE_SECRET`; if the artifacts are missing at runtime, `shield`
+  catches the error and falls back with a clear log rather than crashing the
+  request. Set `ZK_PROVING=fallback` for offline/CI or when no key is available.
 
 ## Reproduce / demo
 ```bash
