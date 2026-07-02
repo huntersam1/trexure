@@ -38,9 +38,12 @@ export function forwardedCookieHeader(
   jar: ReadonlyArray<{ name: string; value: string }>,
   freshToken: string,
 ): string {
+  // Values come from getAll(), which returns them already
+  // percent-decoded; re-encode so a value containing ';' (or '=')
+  // can't split the header into bogus name=value pairs.
   const parts = jar
     .filter((c) => c.name !== CSRF_COOKIE_NAME)
-    .map((c) => `${c.name}=${c.value}`);
+    .map((c) => `${c.name}=${encodeURIComponent(c.value)}`);
   parts.push(`${CSRF_COOKIE_NAME}=${freshToken}`);
   return parts.join("; ");
 }

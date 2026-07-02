@@ -101,4 +101,15 @@ describe("forwardedCookieHeader", () => {
     const fresh = issueCsrfToken();
     expect(forwardedCookieHeader([], fresh)).toBe(`${CSRF_COOKIE_NAME}=${fresh}`);
   });
+
+  it("re-encodes values so a ';' in a decoded value can't split the header", () => {
+    const fresh = issueCsrfToken();
+    const header = forwardedCookieHeader(
+      [{ name: "trexure_session", value: "a;b=c" }],
+      fresh,
+    );
+    // The raw ';' must be percent-encoded, leaving exactly two pairs.
+    expect(header).toBe(`trexure_session=a%3Bb%3Dc; ${CSRF_COOKIE_NAME}=${fresh}`);
+    expect(header.split(";").length).toBe(2);
+  });
 });
