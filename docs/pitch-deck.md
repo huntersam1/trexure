@@ -1,120 +1,161 @@
 # Trexure — Hackathon Pitch Deck
 
+> A private payment walks in. A clean, accounting-ready receipt walks out. The blockchain disappears.
+
 ---
 
 ## Slide 1: Title
 
 # Trexure
-### A unified treasury API that makes private Stellar payments accounting-ready.
+### The private treasury that turns a hidden payment into a receipt your accountant already knows how to file.
 
 **Team:** [TEAM NAME — placeholder]
-**Built on:** Stellar / Soroban testnet
-**Stack:** Next.js 16 · React 19 · Prisma 7 · BullMQ · Groth16 ZK
+**Contact:** [team email / handle — placeholder]
 
-![Placeholder: Trexure logo / wordmark on Plum + Gold brand background](placeholder-image.png)
+![Placeholder: Trexure logo / wordmark on aubergine-black + gold brand background](placeholder-image.png)
 
-**Speaker notes:** Hi, we're [team name], and we built Trexure — a treasury API for Stellar. In three minutes we'll show you a private $2,500 payroll payment that's invisible on the public ledger, gets decrypted with the company's own key, auto-reconciles against a real bank payout, and turns into a receipt your accountant could drop straight into QuickBooks. Everything you're about to see is running against a real Stellar testnet stack, not a slide animation.
+**Speaker notes:** Hi, we're [team name], and we built Trexure. In the next three minutes I'll show you a payroll payment that's invisible to anyone watching the public ledger, that the company can still decrypt with its own key, that reconciles itself against a real bank payout, and that comes out the other side as a receipt your accountant could drop straight into their books. Everything you're about to see runs against a real, live backend — not a slide animation.
 
 ---
 
 ## Slide 2: Problem
 
-- Crypto rails (Stellar included) are **public by default** — every payroll run, vendor payment, or B2B transfer is readable by anyone watching the chain.
-- Privacy tech that *does* exist (ZK shielding, mixers) stops at "the transaction is hidden" — it doesn't reconcile against the real-world fiat leg or produce anything a finance team can use.
-- Companies that want to pay contractors or vendors in stablecoins are stuck choosing between **transparency they don't want** and **privacy tooling with no operational layer on top** (no reconciliation, no audit trail, no receipts).
+- Companies paying people over crypto rails have a brutal choice:
+  - **Pay transparently** — every salary, vendor payout, and amount is readable by anyone scraping the public ledger (competitors, nosy contractors, the whole internet).
+  - **Pay privately** — the payment disappears, but so does any proof of *which on-chain transfer became which bank deposit*.
+- Privacy tooling stops at "the transaction is hidden." It does **not** reconcile that hidden payment against the real-world fiat leg, and it does **not** produce anything a finance team can file.
+- So finance teams are stuck: privacy they want, with **no operational layer on top** — no reconciliation, no audit trail, no receipt.
 
-**Speaker notes:** Imagine a company running payroll over Stellar for contractors abroad. Every payment — the amount, the recipient, the timing — sits in plain text on a public ledger, visible to competitors, contractors comparing notes, anyone. The privacy tools that exist solve hiding the transaction, full stop. They don't tell finance "this on-chain transfer became this bank deposit," and they definitely don't generate something an accountant can file. That gap — private payment in, clean reconciled receipt out — is what we built Trexure to close.
+![Placeholder: split visual — public ledger with exposed payroll details vs. a shielded blob with a single proof hash](placeholder-image.png)
+
+**Speaker notes:** Picture a company running payroll over a public blockchain for contractors abroad. Every payment — the amount, the recipient, the timing — is sitting in plain text on a ledger anyone can read. The privacy tools that exist solve *hiding* the transaction, and then they stop. They don't tell finance "this on-chain transfer became this bank deposit," and they definitely don't generate something an accountant can file. That gap — private payment in, clean reconciled receipt out — is the gap we built Trexure to close.
 
 ---
 
 ## Slide 3: Solution
 
-**Trexure decrypts a company's own ZK-shielded Stellar payments with its view key, automatically reconciles the on-chain leg against the real-world payout, and emits a Stripe-style receipt.**
+**Trexure turns a private payment into an accounting-ready receipt — and proves it's the same money, end to end.**
 
-- **Shield:** payments post to Stellar as an encrypted payload + Groth16 zero-knowledge proof commitment — the public ledger sees noise, not payroll.
-- **Reconcile:** a background worker matches the on-chain leg against an incoming signed fiat/anchor webhook by `intentId`, automatically, with idempotency and failure recovery.
-- **Receipt:** the matched payment renders as a clean JSON + branded PDF receipt — FX rate, fees, both references, privacy block — exportable for accounting.
+- **Shield it:** the payment details are encrypted; only a cryptographic commitment touches the ledger.
+- **Keep your own key:** the company holds a view key and can decrypt its own payments server-side — for AML, KYC, or audit — without ever exposing the key.
+- **Auto-reconcile:** when the fiat payout lands, a background worker stitches the on-chain leg to the bank deposit automatically and marks it settled.
+- **File it:** the result is one clean, Stripe-style receipt — FX, fees, both references — that pipes straight into accounting software.
 
-**Speaker notes:** One sentence: we decrypt your own private Stellar payments, reconcile them against the real payout automatically, and hand you a receipt. Three differentiators nobody else combines: genuine on-chain privacy via a real Groth16 proof, not a mock; a reconciliation worker that does the unglamorous, hard-to-fake work of matching two independent event streams; and an output format designed for humans in finance, not block explorers.
+![Placeholder: one-line flow — Shielded payment → Apply view key → Auto-reconcile → Stripe-style receipt](placeholder-image.png)
+
+**Speaker notes:** Trexure is one sentence: a private payment in, a clean receipt out, with proof it's the same money end to end. We shield the payment so the public ledger only sees a commitment, not the payroll. We give the company its own key so it can decrypt when it needs to — for audit, for compliance — without that key ever leaving the server. When the real-world bank payout arrives, a worker reconciles the two legs automatically. And the output is a receipt that looks like something Stripe or your bank already sends — not a blockchain explorer.
 
 ---
 
 ## Slide 4: Demo
 
-**Core flow — one payment's life, on the dashboard:**
+**One payment, four beats — a $2,500 USD → PHP payroll payout, live.**
 
-1. **The Shield** — open the sample payment; the public ledger view shows only a gold "Shielded" badge and a proof hash. No sender, no recipient, no amount.
-2. **Apply View Key** — click once; the encrypted payload decrypts server-side (AES-256-GCM) and reveals sender, recipient, asset, and amount. The key never reaches the browser.
-3. **Trigger Payout** — a Mock Anchor (standing in for a real provider like Xendit) fires an HMAC-signed webhook; the BullMQ worker matches it to the on-chain leg by `intentId` and flips the payment to `SETTLED`.
-4. **Receipt + Export** — a §6.4-spec receipt renders in the dashboard; **Export PDF** produces a real, branded, accounting-ready PDF via signed URL.
-5. **Bonus — Prove it on-chain:** a Groth16 proof is regenerated and verified live against the deployed Soroban testnet verifier contract, with a tampered-statement check shown failing.
+1. **The shield** — public ledger view shows a proof hash and a "Shielded" badge. No payroll details. *(What a competitor scraping the chain can see.)*
+2. **The decrypt** — click *Apply View Key*; the encrypted payload opens to reveal sender, recipient, and amount. The key never leaves the server.
+3. **The match** — trigger the payout; a signed webhook arrives, the worker matches on-chain ↔ fiat, and the status flips Pending → Settled live.
+4. **The receipt** — a Stripe-style card with FX, fees, slippage, both references. Copy JSON or export PDF.
 
-A one-click **Demo Replay** button runs all of this automatically, idempotently, on the seeded sample payment.
+![Placeholder: screenshot of the four-state payment lifecycle view (shield → decrypt → reconcile → receipt)](placeholder-image.png)
 
-![Placeholder: screenshot of the dashboard mid-replay, showing the Shielded badge transitioning to a revealed payload](placeholder-image.png)
+[PLACEHOLDER: Demo video — ~60–90s screen recording of the four-beat lifecycle on the seeded sample payment, ending on the receipt with the "Copy JSON" click; record with `pnpm demo:record`]
 
-[DEMO VIDEO: `docs/demo/trexure-demo.mp4` (committed) — screen recording of the payment lifecycle (login → shield → apply view key → trigger payout → auto-reconcile → receipt → real on-chain Groth16 proof verify against the deployed Soroban testnet contract), ~35s. Re-record anytime with `pnpm demo:record` against a running local stack (see `scripts/record-demo.mjs`) if the UI changes.]
-
-**Speaker notes:** Let's watch it happen. I'm hitting Demo Replay on the dashboard. First beat — the public view, nothing readable. Second — I apply our view key, and the real payload appears: contractor, USDC, $2,500. Third — I trigger the payout, and watch the reconciliation row stitch the on-chain hash to the bank reference in real time, no human in the loop. Fourth — here's the receipt, and I can export it as a PDF right now. And if a judge wants proof this isn't smoke and mirrors, I can click "Verify proof on-chain" and we'll watch a real zero-knowledge proof get checked by a smart contract on Stellar testnet, live.
+**Speaker notes:** Here's the whole product in one payment. Beat one: this is all a competitor can see on the public ledger — a proof hash and "Shielded." Beat two: the company applies its own view key and the real payroll appears — the key is used and zeroized, never returned. Beat three: we trigger the payout, a signed webhook comes back, and watch the status flip from Pending to Settled as the on-chain hash is stitched to the bank reference. Beat four: the receipt — FX rate, fees, both references, ready to copy as JSON or export as PDF. The blockchain is now completely out of the picture.
 
 ---
 
 ## Slide 5: How it works
 
-**Three Railway-deployable services, one Postgres, one Redis:**
+- **Three moving parts:** a web app, a background worker, and a database.
+  - Web app: where payments are created, decrypted, and viewed.
+  - Worker: watches for confirmations and matches the two legs when both arrive.
+  - Database: the source of truth — encrypted payloads, legs, receipts, audit trail.
+- **The reconciliation key:** every payment carries one shared reference id, embedded on *both* sides — so the worker can say "on-chain hash X produced bank deposit Y" with certainty. We never match on amount alone.
+- **Privacy that's verifiable:** the on-chain footprint is a cryptographic commitment; the real details live encrypted in our database and unlock only with the tenant's view key. The proof itself is checked by a real on-chain verifier — not faked.
+- **One tenant's data is never visible to another** — every query is scoped to the company that owns it.
 
-| Service | Role |
-|---|---|
-| `web` (Next.js 16, RSC) | UI + API routes: auth, payments, receipts, webhook ingestion |
-| `worker` (BullMQ consumer) | Polls Soroban RPC for on-chain events, matches fiat webhooks, writes `SETTLED`, generates receipts |
-| Postgres 17 / Redis | Source of truth / queue + idempotency cache |
+![Placeholder: simple architecture diagram — Web app + Worker over a shared DB, with an on-chain commitment on one side and a fiat webhook on the other, meeting at a receipt](placeholder-image.png)
 
-**Data flow:** `POST /api/payments` → Soroban tx submitted via `@stellar/stellar-sdk` → encrypted payload + ZK proof commitment stored → Mock Anchor fires a signed webhook → HMAC-verified → worker reconciles both legs by `intentId` → `SETTLED` → receipt generated.
-
-**ZK layer [confirmed in code]:** a Circom circuit compiled for BLS12-381, proved with `snarkjs` (Groth16), verified on-chain by a hand-written Soroban smart contract (`zk/verifier/src/lib.rs`) using the host's native BLS12-381 pairing functions — not mocked.
-
-**Other real plumbing:** AES-256-GCM payload encryption, argon2id auth, CSRF double-submit, multi-tenant row isolation via a Prisma extension, RFC-9457 problem+json errors, server-side PDF generation (pdfkit), 11 Prisma models, 192 passing automated tests across 58 files.
-
-![Placeholder: architecture diagram — web/worker/Postgres/Redis boxes with Stellar testnet and Mock Anchor as external systems](placeholder-image.png)
-
-**Speaker notes:** Under the hood it's a fairly standard modern stack — Next.js, Prisma, BullMQ — doing two genuinely hard things well. One: the privacy layer is a real Circom circuit, proved with snarkjs, and verified by a Soroban smart contract we wrote ourselves that does actual BLS12-381 pairing checks on-chain — that part took real cryptography work, not a flag we flipped. Two: the worker reconciles two independent, asynchronous event streams — chain events and fiat webhooks — which is the unglamorous but critical part every crypto-payout product hand-rolls badly or skips. We have 192 passing tests covering both.
+**Speaker notes:** You don't need to care about our stack — here's the shape. A web app for creating and viewing payments, a background worker that watches confirmations and matches the two legs, and a database as the source of truth. The clever bit is the join: every payment has one reference id that travels on both the on-chain side and the bank side, so when both arrive the worker can prove they're the same money. We never match on amount alone — that's how you avoid false positives. And the privacy is real and verifiable: the ledger only sees a commitment, the details are encrypted with the company's key, and the proof is checked by a real on-chain verifier.
 
 ---
 
 ## Slide 6: Impact / market
 
-- **Who needs this:** any company paying contractors, vendors, or cross-border payroll in stablecoins who doesn't want every transaction amount and counterparty exposed on a public ledger — starting with the USD→PHP remittance/payroll corridor we demo.
-- **Why now:** stablecoin payroll and B2B payments are growing fast, but the tooling stops at "send the transaction" — nothing in the ecosystem closes the loop from private on-chain transfer to an actual accounting record.
-- **Why Trexure specifically:** Stripe and traditional payment APIs can't touch crypto or privacy; existing crypto privacy tooling stops at the chain and produces nothing finance teams can use. We're the only piece that does **Stellar-native + ZK-private + locally reconciled**, together, in one API. [inferred — competitive positioning, not benchmarked against named competitors]
+- **Who needs this:**
+  - Companies running crypto-based payroll / vendor payouts who want privacy from competitors.
+  - Finance & accounting teams who need a receipt, not a transaction hash.
+  - Compliance / AML reviewers who need controlled decryption — without exposing payments publicly.
+- **Why now:** stablecoin payroll and B2B payouts are growing fast, but the operational layer on top of them barely exists. Every team using these rails is hand-reconciling spreadsheets against explorer links.
+- **The wedge:** start with the receipt — the thing every finance team already understands — and let the privacy be the reason they switch, not the thing they have to learn. [inferred: go-to-market framing]
+- **The moat:** private *and* reconciled *and* accounting-ready in one product. Privacy tools do the first; accounting tools do the third; nobody does all three. [inferred: competitive framing]
 
-**Speaker notes:** Anyone running payroll or vendor payments over Stellar in stablecoins is the immediate buyer — and that's a fast-growing category as remittance and cross-border payroll move on-chain for the cost savings. The reason this matters strategically: Stripe can't do crypto or privacy, and crypto-native privacy tools stop at "the transaction is hidden" with no operational layer. Nobody combines genuine on-chain privacy with automatic reconciliation and an accounting-ready receipt — that combination is the wedge.
+![Placeholder: simple market map — Privacy tools (shield only) vs. Accounting tools (receipt only) vs. Trexure (all three)](placeholder-image.png)
+
+**Speaker notes:** Who actually needs this? Any company paying people or vendors over these rails — they want privacy from competitors, but their finance team still needs a receipt and their compliance team still needs to decrypt on demand. The reason this matters now is that stablecoin payroll is growing fast, and the operational layer on top of it basically doesn't exist — teams are hand-reconciling spreadsheets against blockchain explorer links. Our wedge is the receipt itself: it's the thing finance already understands, and privacy becomes the reason to switch rather than the thing they have to learn. The moat is doing all three — private, reconciled, and accounting-ready — in one product, which nobody else does today.
 
 ---
 
 ## Slide 7: What's next
 
-- **Full privacy-pool transfer contract** — the deployed contract now exposes a live `shielded_transfer` entrypoint (a commitment recorder: it anchors each new payment's intent + commitment as a contract event, confirmed end-to-end on testnet). What remains for a production privacy pool is actual on-chain value transfer with note-based shielded balances and nullifiers.
-- **Richer ZK circuit** — current circuit proves a minimal commitment relation; a production privacy pool needs note-based shielded balances and nullifiers.
-- **Real anchor integration** — swap the Mock Anchor for a live provider (e.g. Xendit) behind the same signed-webhook contract it already implements.
-- **Multi-asset / multi-corridor support** — today's demo is USD→PHP; the schema and reconciliation worker are corridor-agnostic and ready to extend.
-- **Admin/ops hardening** — broader audit-log surfacing, key rotation UX, and production secret management for the Railway deploy.
+**Honest about where we are — and what's next:**
 
-**Speaker notes:** We were deliberate about build order — we shipped the hard, easy-to-fake parts for real: the privacy proof and the reconciliation engine. New payments now submit on-chain for real — a live contract records each payment's commitment and our watcher settles from the contract event. What's left is mostly integration breadth, not new invention: upgrading the commitment recorder to a full privacy pool that moves value, swapping in a live anchor, and broadening past one currency corridor.
+- **A real privacy pool, not just a commitment recorder.** Today the on-chain side records a cryptographic commitment and verifies the proof — but it doesn't yet move shielded balances with notes and nullifiers. That's the next milestone; the proof verification is already live. [confirmed in README + `zk/`]
+- **A real fiat provider.** Today's payout is simulated by a built-in Mock Anchor that fires the *same* signed webhook a real provider would — so the reconciliation path is real, only the bank is faked. Swapping in a real provider is a config change, no app code to rewrite. [confirmed: `lib/anchor/mock.ts`]
+- **From testnet to mainnet** — and turning on the New Payment flow for everyone (currently env-gated while we harden the contract path). [confirmed: `ENABLE_NEW_PAYMENTS`]
+- **Deeper accounting integrations** — push the receipt straight into QuickBooks / Xero instead of copy-paste. [inferred: natural next step]
+- **Defense-in-depth tenant isolation at the database level** (today it's enforced in app code). [inferred from SPEC §7 optional RLS]
+
+![Placeholder: roadmap timeline — Privacy pool → Real fiat provider → Mainnet → Accounting integrations](placeholder-image.png)
+
+**Speaker notes:** We want to be honest about where this is. The on-chain side today records a real cryptographic commitment and verifies a real proof — but it's not yet a full privacy pool with shielded balances; that's the next milestone, and the verification is already live. The bank payout is simulated by a built-in mock that fires the exact same signed webhook a real provider sends — so the reconciliation path is real, only the bank is faked, and swapping in a real one is a config change. From there: mainnet, turning on new payments for everyone, and pushing the receipt straight into QuickBooks so it's not even a copy-paste. We built the spine to be bulletproof first; these are the layers on top.
 
 ---
 
 ## Slide 8: Team / thanks
 
-**[TEAM NAME — placeholder]**
+**Team**
 
-- [Name] — [Role] — [contact]
-- [Name] — [Role] — [contact]
-- [Name] — [Role] — [contact]
+- [Name — Role] *(placeholder)*
+- [Name — Role] *(placeholder)*
+- [Name — Role] *(placeholder)*
 
-Built for [HACKATHON NAME — placeholder] on Stellar testnet.
+**Contact**
+- [email / handle — placeholder]
+- [repo / demo link — placeholder]
 
-**Thank you — questions welcome.**
+**Thanks to:** Stellar / Soroban testnet · the snarkjs + circom communities · [any other credits]
 
-![Placeholder: team photo or logo lockup](placeholder-image.png)
+![Placeholder: team photo / avatars](placeholder-image.png)
 
-**Speaker notes:** That's Trexure — a real zero-knowledge proof verified on-chain, a real reconciliation engine, and a receipt finance teams can actually use, all running on Stellar testnet today. Thanks for watching, we'd love your questions, and we're happy to walk through the code or the contract live if you want to dig in.
+**Speaker notes:** We're [team name]. [One line per person — who did what.] The repo and a live demo are at [link], and we'd love to talk to anyone running payroll or payouts over these rails. Thanks for your time — and thanks to the Stellar testnet and the open-source ZK tooling that made the real proof verification possible. We're happy to take questions.
+
+---
+
+# Recording script
+
+> A continuous, readable narration for recording a ~3–5 minute pitch. Read this aloud, slide by slide. It expands each slide's speaker notes into a flowing script.
+
+**[Slide 1 — Title]**
+Hi, we're [team name], and we built Trexure — the private treasury that turns a hidden payment into a receipt your accountant already knows how to file. In the next few minutes I'll show you a payroll payment that's invisible to anyone watching the public ledger, that the company can still decrypt with its own key, that reconciles itself against a real bank payout, and that comes out as a clean receipt you could drop straight into your books. Everything runs against a real, live backend — not a slide animation.
+
+**[Slide 2 — Problem]**
+Picture a company running payroll over a public blockchain for contractors abroad. Every payment — the amount, the recipient, the timing — is sitting in plain text on a ledger anyone can read. Competitors, nosy contractors, the whole internet. The privacy tools that exist solve *hiding* the transaction, and then they stop. They don't tell finance "this on-chain transfer became this bank deposit," and they definitely don't generate something an accountant can file. So companies are stuck choosing between transparency they don't want, and privacy tooling with no operational layer on top — no reconciliation, no audit trail, no receipts. That gap is what we built Trexure to close.
+
+**[Slide 3 — Solution]**
+Trexure, in one sentence: a private payment walks in, a clean receipt walks out, and we prove it's the same money end to end. We shield the payment so the public ledger only sees a cryptographic commitment — not the payroll. We give the company its own key, so it can decrypt when it needs to, for audit or compliance, without that key ever leaving the server. When the real-world bank payout arrives, a background worker reconciles the two legs automatically. And the output is a receipt that looks like something Stripe or your bank already sends you — not a blockchain explorer. Private, reconciled, and accounting-ready, in one product.
+
+**[Slide 4 — Demo]**
+Here's the whole product in one payment — a $2,500 dollar-to-peso payroll payout, live. Beat one: this is all a competitor scraping the public ledger can see — a proof hash and a "Shielded" badge. No payroll. Beat two: the company applies its own view key, and the real payment appears — sender, recipient, amount. The key is used and immediately zeroized; it's never sent back to the browser and never logged. Beat three: we trigger the payout, a signed webhook comes back from the bank side, and watch the status flip from Pending to Settled as the worker stitches the on-chain hash to the bank reference. Beat four: the receipt — exact FX rate, fees, slippage, both transaction references, and a privacy block. Copy it as JSON, or export it as a PDF. The blockchain is now completely out of the picture.
+
+**[Slide 5 — How it works]**
+You don't need to care about our stack — here's the shape. A web app for creating and viewing payments, a background worker that watches confirmations and matches the two legs when they both arrive, and a database as the source of truth. The clever part is the join: every payment carries one shared reference id that travels on *both* the on-chain side and the bank side, so when both arrive the worker can prove "on-chain hash X produced bank deposit Y" with certainty. We never match on amount alone — that's how you avoid false positives. And the privacy is real and verifiable: the ledger sees only a commitment, the details are encrypted with the company's key, and the proof is checked by a real on-chain verifier. Every query is scoped to the company that owns the data — one tenant can never see another's payments.
+
+**[Slide 6 — Impact / market]**
+Who actually needs this? Any company paying people or vendors over these rails — they want privacy from competitors, but their finance team still needs a receipt and their compliance team still needs to decrypt on demand. It matters now because stablecoin payroll and B2B payouts are growing fast, and the operational layer on top barely exists — teams are hand-reconciling spreadsheets against blockchain explorer links. Our wedge is the receipt itself: it's the thing finance already understands, and privacy becomes the reason they switch, not the thing they have to learn. The moat is doing all three — private, reconciled, and accounting-ready — in one product, which nobody does today. Privacy tools do the first; accounting tools do the third; nobody does all three.
+
+**[Slide 7 — What's next]**
+We want to be honest about where this is. The on-chain side today records a real cryptographic commitment and verifies a real zero-knowledge proof — but it's not yet a full privacy pool with shielded balances and nullifiers. That's the next milestone, and the proof verification is already live. The bank payout is simulated by a built-in mock that fires the exact same signed webhook a real provider sends — so the reconciliation path is real end to end, only the bank itself is faked. Swapping in a real provider is a config change, not a rewrite. From there: mainnet, turning on new payments for everyone, and pushing the receipt straight into QuickBooks so it's not even a copy-paste. We built the spine to be bulletproof first; these are the layers on top.
+
+**[Slide 8 — Team / thanks]**
+We're [team name]. [One line per person — who did what.] The repo and a live demo are at [link], and we'd love to talk to anyone running payroll or payouts over these rails. Thanks for your time — and thanks to the Stellar testnet and the open-source ZK tooling that made the real proof verification possible. We're happy to take questions.
