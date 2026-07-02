@@ -5,6 +5,24 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Fix: New Payment CSRF 403 (duplicate cookie) — #29
+
+The New Payment server action (`app/(app)/payments/new/actions.ts`) forwarded
+the browser's cookie jar and *appended* a freshly issued CSRF cookie, so the
+header carried two `__Host-trexure_csrf` cookies; `readCsrfCookie()` picked the
+stale login-time one and `assertCsrf()` rejected every submission with 403
+"Invalid CSRF token."
+
+- **Fix** — new `forwardedCookieHeader()` helper in `lib/auth/csrf.ts` drops any
+  existing CSRF cookie from the jar before appending the fresh double-submit
+  token; the action now uses it.
+- **Tests** — regression coverage in `lib/auth/csrf.test.ts` for the
+  duplicate-cookie scenario and the helper's dedupe behavior.
+
+**Verification:** `typecheck`/`lint`/`test`/`build` green.
+
+---
+
 ## New payments run end-to-end on testnet (`shielded_transfer`) — #31
 
 Brand-new payments previously died at simulation: the client invoked
