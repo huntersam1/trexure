@@ -5,6 +5,32 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Public landing page at `homepage/index.html` — #39
+
+The app was login-gated at `/`, so a visitor with no credentials saw only a
+sign-in box. Added a standalone, self-contained marketing page.
+
+- **`homepage/index.html`** — plain HTML + inline CSS, no framework, no build
+  step, and **zero external network dependencies** (renders offline). Reuses the
+  brand tokens from `app/globals.css` (violet `#8E44AD`, gold `#D4AF37`, ink
+  `#1A1025`, off-white `#F7F9FB`; Geist/Inter/JetBrains Mono stacks) and an
+  inline-SVG logo mark built from the `LOGO.md` concept (shield · two converging
+  streams · keyhole notch).
+- **Content, all traceable to `README.md`/`SPEC.md`** — the four-beat hero flow
+  (Shield → Decrypt → Reconcile → Receipt), the problem framing, the three-part
+  moat (Stellar-native · ZK-private · locally reconciled), and an honest
+  "what's real vs. mocked" table (ZK verification is genuinely on-chain; the
+  Mock Anchor is the only stand-in). No fabricated features, metrics, or partners.
+- **CTAs** — Sign in (`/login`), Create a workspace (`/signup`), and a link to
+  the recorded demo (`../docs/demo/trexure-demo.mp4`, resolved when served from
+  the repo root). README documents how to serve it.
+
+**Verification:** served from the repo root (`python3 -m http.server`) → HTTP
+200, `/login` + `/signup` + demo-video links all resolve; headless Chrome render
+shows no console errors and no missing assets.
+
+---
+
 ## New-payment submission enabled by default — #40
 
 The gate from #32 was correct while the `shielded_transfer` contract was

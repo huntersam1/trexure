@@ -346,9 +346,28 @@ Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml
 
 Live URLs: `[PLACEHOLDER: Live app URL]`
 
+## Landing page
+
+A standalone, dependency-free marketing page lives at
+[`homepage/index.html`](homepage/index.html) — plain HTML + inline CSS, no build
+step and no external network calls, so it renders offline or from any static
+host. It reuses the brand tokens from `app/globals.css` and links to the app's
+`/login` and `/signup` routes plus the demo video.
+
+Open it directly (`file://.../homepage/index.html`) or serve it from the **repo
+root** so the relative demo-video link resolves:
+
+```bash
+python3 -m http.server 8000    # then open http://localhost:8000/homepage/
+```
+
+The `/login` and `/signup` links point at the running Next app (same origin in
+production, where the landing page is served alongside it).
+
 ## Demo
 
 - Live app: `[PLACEHOLDER: Live app URL]`
+- Landing page: [`homepage/index.html`](homepage/index.html) (serve from repo root, open `/homepage/`)
 - Demo video: `[PLACEHOLDER: Demo video URL]`
 - Screenshot: `[PLACEHOLDER: screenshot]`
 - Manual demo script: [`docs/demo/runbook.md`](docs/demo/runbook.md)
