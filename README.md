@@ -159,7 +159,7 @@ sequenceDiagram
 
     U->>Web: POST /api/payments (create private payment)
     Web->>Web: shield() payload, buildAndSubmitPrivatePayment()
-    Web->>Stellar: submit Soroban tx (intentId in memo)
+    Web->>Stellar: submit Soroban tx (intentId as contract-call arg)
     Web->>DB: Payment(status=PENDING, encryptedPayload, proofHash)
     Web->>Worker: enqueue watch-onchain
 
@@ -376,4 +376,14 @@ Not specified — no `LICENSE` file is present in this repository. `package.json
 
 ### What's not yet wired [inferred]
 
-Per the prior README revision: new private-payment *submission* still needs a deployed `shielded_transfer` privacy-pool contract behind the same interface as the ZK verifier — proof **verification** is fully live on testnet, but creating a brand-new shielded payment beyond the seeded demo one is not yet fully end-to-end on-chain. See the "What's next" slide in [`docs/pitch-deck.md`](docs/pitch-deck.md).
+New-payment submission is now live end-to-end on testnet: the deployed contract
+exposes a `shielded_transfer` entrypoint that records the payment's commitment
+as a contract event (topics = intent id, data = commitment), and the
+watch-onchain worker confirms brand-new payments from that event through to a
+SETTLED receipt with a real explorer-linkable tx hash.
+
+**Honesty note:** `shielded_transfer` is a *commitment recorder*, not a privacy
+pool — no tokens move on-chain and there are no note-based shielded balances or
+nullifiers yet; that remains the next milestone. Proof **verification** was
+already fully live on testnet. See the "What's next" slide in
+[`docs/pitch-deck.md`](docs/pitch-deck.md).

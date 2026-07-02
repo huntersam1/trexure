@@ -93,13 +93,13 @@ A one-click **Demo Replay** button runs all of this automatically, idempotently,
 
 ## Slide 7: What's next
 
-- **Real on-chain transfer contract** — today's verifier contract proves a ZK commitment; submitting a *new* private payment still needs a deployed `shielded_transfer` privacy-pool contract behind the same interface (the verify path is fully live; new-payment submission against a transfer contract is the next milestone). [confirmed gap — see issue #25 demo doc and PR #26 follow-ups]
+- **Full privacy-pool transfer contract** — the deployed contract now exposes a live `shielded_transfer` entrypoint (a commitment recorder: it anchors each new payment's intent + commitment as a contract event, confirmed end-to-end on testnet). What remains for a production privacy pool is actual on-chain value transfer with note-based shielded balances and nullifiers.
 - **Richer ZK circuit** — current circuit proves a minimal commitment relation; a production privacy pool needs note-based shielded balances and nullifiers.
 - **Real anchor integration** — swap the Mock Anchor for a live provider (e.g. Xendit) behind the same signed-webhook contract it already implements.
 - **Multi-asset / multi-corridor support** — today's demo is USD→PHP; the schema and reconciliation worker are corridor-agnostic and ready to extend.
 - **Admin/ops hardening** — broader audit-log surfacing, key rotation UX, and production secret management for the Railway deploy.
 
-**Speaker notes:** We were deliberate about build order — we shipped the hard, easy-to-fake parts for real: the privacy proof and the reconciliation engine. What's left is mostly integration breadth, not new invention. The biggest item is deploying a full privacy-pool transfer contract so new payments submit on-chain the same way our seeded demo payment already does end-to-end. After that it's swapping in a live anchor and broadening past one currency corridor.
+**Speaker notes:** We were deliberate about build order — we shipped the hard, easy-to-fake parts for real: the privacy proof and the reconciliation engine. New payments now submit on-chain for real — a live contract records each payment's commitment and our watcher settles from the contract event. What's left is mostly integration breadth, not new invention: upgrading the commitment recorder to a full privacy pool that moves value, swapping in a live anchor, and broadening past one currency corridor.
 
 ---
 

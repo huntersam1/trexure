@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { env } from "@/lib/env";
+import { DEMO_FX_RATES, quoteFxRate } from "@/lib/fx";
 import { signHmac } from "@/lib/webhooks/verify";
 
 /**
@@ -21,8 +22,10 @@ export async function triggerMockPayout(args: {
   const providerRef = `mock_payout_${randomBytes(8).toString("hex")}`;
   const bankRef = `PH-BANK-${randomBytes(4).toString("hex").toUpperCase()}`;
 
-  // Invented FX/fee figures (deterministic for the demo corridor).
-  const fxRate = "56.70";
+  // Invented FX/fee figures (deterministic for the demo corridor). The rate is
+  // derived from the payout's own currency (USD source in the demo) so the event's
+  // reported rate stays consistent with its amount instead of being pinned to USD:PHP.
+  const fxRate = quoteFxRate("USD", args.currency.toUpperCase()) ?? DEMO_FX_RATES["USD:PHP"] ?? "56.70";
   const anchorFee = "50.00";
 
   const event = {

@@ -12,6 +12,9 @@ const nextConfig: NextConfig = {
     "snarkjs",
   ],
   typedRoutes: true,
+  // Keep dev-mode screen recordings (pnpm demo:record) free of the floating
+  // dev-tools button; has no effect on production builds.
+  devIndicators: false,
 };
 
 export default nextConfig;

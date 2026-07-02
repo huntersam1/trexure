@@ -80,6 +80,7 @@ export async function getPaymentDetail(id: string): Promise<PaymentDetail | null
     sourceAsset: p.sourceAsset,
     sourceAmount: p.sourceAmount.toString(),
     targetCurrency: p.targetCurrency,
+    targetAmount: p.targetAmount ? p.targetAmount.toString() : null,
     corridorFrom: p.corridorFrom,
     corridorTo: p.corridorTo,
     createdAt: p.createdAt.toISOString(),

@@ -4,6 +4,7 @@ import argon2 from "argon2";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { deriveCommitment, hexCommitment } from "../lib/zk/commit";
+import { quoteTargetAmount } from "../lib/fx";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -145,6 +146,7 @@ async function main() {
       encryptedPayload: shieldedBlob.ciphertext,
       payloadNonce: shieldedBlob.nonce,
       proofHash,
+      targetAmount: quoteTargetAmount("2500.00", "USD", "PHP"),
     },
     create: {
       tenantId: tenant.id,
@@ -153,7 +155,7 @@ async function main() {
       sourceAsset: "USDC",
       sourceAmount: "2500.00000000",
       targetCurrency: "PHP",
-      targetAmount: null,
+      targetAmount: quoteTargetAmount("2500.00", "USD", "PHP"),
       corridorFrom: "USD",
       corridorTo: "PHP",
       recipientRef: "rcpt_demo_contractor_ph",

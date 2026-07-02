@@ -27,7 +27,7 @@ export async function processWatchOnchain(job: Job<{ paymentId: string }>): Prom
 
   const events = await getContractEvents({
     contractId,
-    topic: payment.intentId, // intent id is the on-chain join key (tx memo / topic)
+    topic: payment.intentId, // intent id is the on-chain join key, carried in the contract event topic/data (not a tx memo — Soroban rejects classic memos)
     startLedger,
   });
   const match = events[0];

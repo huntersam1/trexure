@@ -51,6 +51,33 @@ pnpm zk:demo        # generate a fresh proof, verify on testnet, show tampered �
 Env: `ZK_CONTRACT_ID` (from `zk/deploy.json`), a funded `STELLAR_SOURCE_SECRET`,
 `ZK_PROVING=live` to enable real proving in `shield`.
 
+## The `shielded_transfer` entrypoint (new-payment path)
+
+The same deployed contract also exposes `shielded_transfer(intent_id, amount,
+source_asset, commitment)` — a **commitment recorder** used by new-payment
+submission (`buildAndSubmitPrivatePayment`). It publishes a contract event with
+`topics = (intent_id,)` and `data = commitment` (the payment's `proofHash`);
+the watch-onchain worker confirms the payment from that event. It does NOT move
+tokens and keeps no note/nullifier state — it anchors the payment intent
+on-chain honestly without claiming to be a privacy pool.
+
+**Deploy note:** nothing reads `zk/deploy.json` at runtime — the app resolves the
+contract from `env.ZK_CONTRACT_ID` only (`deploy.json` is consumed by
+`zk/scripts/zk-demo.mjs`). After a redeploy you must update `ZK_CONTRACT_ID`
+*everywhere it is set outside this repo* (local `.env`, Railway `web` + `worker`
+services). A stale id keeps hitting the pre-fix "non-existent contract function
+shielded_transfer" failure even though `pnpm zk:demo` (which reads `deploy.json`)
+still passes, so the drift is easy to miss.
+
+**Scope / trust:** `shielded_transfer` has no `require_auth` and no replay/dedup
+guard, and the watcher trusts the first matching event's commitment
+unconditionally. This is acceptable for the demo — `intent_id` is a 128-bit
+`randomBytes(16)` value (not guessable) and no funds move through this
+entrypoint — but a production version should authenticate the caller and compare
+the event's commitment against the payment's stored `proofHash` before accepting
+it, so a third party who learns an `intent_id` can't publish a forged
+confirmation.
+
 ## Rebuild the verifier (optional)
 ```bash
 cd zk/verifier && stellar contract build
