@@ -52,6 +52,10 @@ describe("provisionTenant (#33)", () => {
     });
     expect(payment?.shielded).toBe(true);
     expect(payment?.status).toBe("PENDING");
+    // Destination amount is FX-quoted (not null) so the receipt shows real
+    // economics on first view — matches the seed/createPayment convention (#28).
+    expect(payment?.targetAmount).not.toBeNull();
+    expect(Number(payment?.targetAmount)).toBe(141750);
     expect(payment?.proofHash).toBe(
       hexCommitment(deriveCommitment(viewKey, payment!.intentId).commitment),
     );

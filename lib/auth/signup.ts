@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/auth/rate-limit";
 import { aesEncrypt } from "@/lib/crypto/aes";
+import { quoteTargetAmount } from "@/lib/fx";
 import { deriveCommitment, hexCommitment } from "@/lib/zk/commit";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
@@ -100,7 +101,10 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
           sourceAsset: "USDC",
           sourceAmount: "2500.00000000",
           targetCurrency: "PHP",
-          targetAmount: null,
+          // Quote the destination amount from the shared FX helper (like seed.ts +
+          // createPayment) so the fresh tenant's receipt shows real economics, not
+          // a 1.00-rate fallback (#28 convention).
+          targetAmount: quoteTargetAmount("2500.00", "USD", "PHP"),
           corridorFrom: "USD",
           corridorTo: "PHP",
           recipientRef: "rcpt_demo_contractor_ph",
