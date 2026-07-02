@@ -55,7 +55,8 @@ const newIntentId = (): string => `intent_${randomBytes(16).toString("hex")}`;
 
 /**
  * Create a private payment: shield the payload (stub in Phase 3), submit the Soroban tx
- * carrying intentId in the memo, persist Payment(PENDING) + ONCHAIN leg, enqueue watch-onchain.
+ * (intentId rides as a contract-call argument), persist Payment(PENDING) + ONCHAIN leg,
+ * enqueue watch-onchain.
  * Amounts are stored as Prisma Decimal — the validated decimal string is passed straight through.
  */
 export async function createPayment(
@@ -73,14 +74,18 @@ export async function createPayment(
     sourceAsset: input.sourceAsset,
     targetCurrency: input.targetCurrency,
     intentId,
+    // The optional user memo is private data: it lives only in the shielded
+    // payload. Soroban txs cannot carry classic memos (#30).
+    ...(input.memo ? { memo: input.memo } : {}),
   });
 
-  // 2. Submit the Soroban tx (intentId carried in the memo — the reconciliation join key).
+  // 2. Submit the Soroban tx. The intentId — the reconciliation join key — is the
+  //    first contract-call argument; the watch-onchain worker matches on contract
+  //    events, never on a tx memo.
   const onchain = await buildAndSubmitPrivatePayment({
     intentId,
     amount: input.amount,
     sourceAsset: input.sourceAsset,
-    memo: input.memo ?? intentId,
   });
 
   // 3. Persist Payment + ONCHAIN leg. tenantId is injected by the forTenant() extension

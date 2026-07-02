@@ -159,7 +159,7 @@ sequenceDiagram
 
     U->>Web: POST /api/payments (create private payment)
     Web->>Web: shield() payload, buildAndSubmitPrivatePayment()
-    Web->>Stellar: submit Soroban tx (intentId in memo)
+    Web->>Stellar: submit Soroban tx (intentId as contract-call arg)
     Web->>DB: Payment(status=PENDING, encryptedPayload, proofHash)
     Web->>Worker: enqueue watch-onchain
 

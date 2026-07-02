@@ -202,15 +202,16 @@ Standalone Node process (`worker/index.ts`) running BullMQ workers on Redis.
   within a ledger window; on match write `OnchainLeg` and enqueue `reconcile`.
   Backoff with cap; mark `Payment.status=FAILED` after max attempts + timeout.
 - `reconcile` — load both legs for the payment; match on amount (within tolerance for
-  FX/slippage), corridor, and a shared reference (memo/intent id acting as the join
+  FX/slippage), corridor, and a shared reference (the intent id acting as the join
   key). On match: `status=SETTLED`, compute FX rate/fees/slippage, create `Receipt`.
 - `generate-receipt` — (can be folded into reconcile) produce + persist receipt JSON
   and optional PDF export to storage.
 
 ### 6.2 Matching key
-Use a stable correlation id (the "intent id") embedded in both the Soroban tx memo and
-the fiat payout reference. This is the reconciliation join key — the conceptual core of
-the product. Never match on amount alone.
+Use a stable correlation id (the "intent id") embedded in both the Soroban contract
+invocation (as a call argument surfaced via contract events — Soroban txs cannot carry
+classic memos) and the fiat payout reference. This is the reconciliation join key —
+the conceptual core of the product. Never match on amount alone.
 
 ### 6.3 Idempotency & ordering
 Either leg may arrive first. Worker is order-independent and idempotent: reconciling
@@ -305,7 +306,7 @@ model Payment {
   id               String        @id @default(cuid())
   tenantId         String
   tenant           Tenant        @relation(fields: [tenantId], references: [id])
-  intentId         String        @unique   // reconciliation join key (in memo + fiat ref)
+  intentId         String        @unique   // reconciliation join key (contract-call arg + fiat ref)
   status           PaymentStatus @default(DRAFT)
   sourceAsset      String
   sourceAmount     Decimal       @db.Decimal(38, 8)
@@ -441,7 +442,7 @@ real, so the demo proves the production reconciliation path, not a shortcut.
   {
     "id": "evt_mock_…",                 // externalId → idempotency
     "event": "payment.completed",       // or "payment.failed"
-    "intentId": "intent_…",             // reconciliation join key (also in tx memo)
+    "intentId": "intent_…",             // reconciliation join key (also a contract-call arg)
     "providerRef": "mock_payout_…",
     "bankRef": "PH-BANK-…",
     "amount": "141750.00",

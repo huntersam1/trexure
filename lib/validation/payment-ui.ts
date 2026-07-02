@@ -16,7 +16,7 @@ export const createPaymentFormSchema = z
     sourceAsset: z.string().min(1).max(16),
     targetCurrency: z.string().min(3).max(8),
     anchorId: z.string().min(1, "Anchor is required"),
-    memo: z.string().max(128).optional(),
+    memo: z.string().max(64).optional(),
   })
   .strict();
 

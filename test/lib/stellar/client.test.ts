@@ -6,6 +6,7 @@ const getTransaction = vi.fn();
 const getEvents = vi.fn();
 const getAccount = vi.fn();
 const prepareTransaction = vi.fn(async (tx: unknown) => tx);
+const addMemo = vi.fn();
 
 vi.mock("@stellar/stellar-sdk", () => {
   class FakeKeypair {
@@ -19,7 +20,7 @@ vi.mock("@stellar/stellar-sdk", () => {
   }
   class FakeTransactionBuilder {
     addOperation() { return this; }
-    addMemo() { return this; }
+    addMemo(...a: unknown[]) { addMemo(...a); return this; }
     setTimeout() { return this; }
     build() { return { sign: vi.fn(), hash: () => Buffer.from("deadbeef") }; }
   }
@@ -62,7 +63,7 @@ describe("buildAndSubmitPrivatePayment", () => {
   it("builds, server-signs and submits a Soroban tx and returns {txHash, ledger, contractId}", async () => {
     const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
     const res = await buildAndSubmitPrivatePayment({
-      intentId: "intent_1", amount: "2500.00", sourceAsset: "USDC", memo: "intent_1",
+      intentId: "intent_1", amount: "2500.00", sourceAsset: "USDC",
     });
     expect(res.txHash).toBe("abc123");
     expect(res.ledger).toBe(555);
@@ -70,11 +71,17 @@ describe("buildAndSubmitPrivatePayment", () => {
     expect(sendTransaction).toHaveBeenCalledOnce();
   });
 
+  it("never attaches a classic memo — Soroban txs reject memos (regression #30)", async () => {
+    const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
+    await buildAndSubmitPrivatePayment({ intentId: "intent_1", amount: "1.00", sourceAsset: "USDC" });
+    expect(addMemo).not.toHaveBeenCalled();
+  });
+
   it("throws when the network rejects the submission", async () => {
     sendTransaction.mockResolvedValueOnce({ status: "ERROR", errorResultXdr: "AAAA" });
     const { buildAndSubmitPrivatePayment } = await import("../../../lib/stellar/client");
     await expect(
-      buildAndSubmitPrivatePayment({ intentId: "i", amount: "1", sourceAsset: "USDC", memo: "i" }),
+      buildAndSubmitPrivatePayment({ intentId: "i", amount: "1", sourceAsset: "USDC" }),
     ).rejects.toThrow(/submission/i);
   });
 });
