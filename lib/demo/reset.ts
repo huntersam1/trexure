@@ -1,5 +1,6 @@
 import "server-only";
 import { forTenant } from "@/lib/db";
+import { quoteTargetAmount } from "@/lib/fx";
 import { AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
 
@@ -20,12 +21,21 @@ export async function resetSamplePayment(
   });
   if (!payment) throw new AppError(404, "Payment not found");
 
+  // Re-quote the destination amount from the stored corridor so the receipt keeps
+  // real FX economics on every replay. Leaving it null makes the UI fall back to the
+  // raw source amount labeled with the target currency (an implied 1.00 rate).
+  const targetAmount = quoteTargetAmount(
+    payment.sourceAmount,
+    payment.corridorFrom,
+    payment.corridorTo,
+  );
+
   await db.$transaction([
     db.receipt.deleteMany({ where: { paymentId } }),
     db.paymentLeg.deleteMany({ where: { paymentId, legType: "FIAT" } }),
     db.payment.update({
       where: { id: paymentId },
-      data: { status: "PENDING", targetAmount: null },
+      data: { status: "PENDING", targetAmount },
     }),
   ]);
 

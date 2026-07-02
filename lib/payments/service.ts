@@ -7,6 +7,7 @@ import { buildAndSubmitPrivatePayment } from "../stellar/client";
 import { QUEUE, watchOnchainQueue, reconcileQueue } from "../queue";
 import { corridorFor, type CreatePaymentInput, type ListPaymentsQuery } from "../validation/payments";
 import { AppError } from "../http/problem";
+import { quoteTargetAmount } from "../fx";
 import { logger } from "../log";
 import type { Prisma } from "../generated/prisma/client";
 
@@ -99,6 +100,7 @@ export async function createPayment(
     sourceAsset: input.sourceAsset,
     sourceAmount: input.amount, // Prisma coerces the decimal string to Decimal(38,8).
     targetCurrency: input.targetCurrency,
+    targetAmount: quoteTargetAmount(input.amount, from, to),
     corridorFrom: from,
     corridorTo: to,
     recipientRef: input.recipientRef,

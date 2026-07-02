@@ -52,6 +52,9 @@ describe("createPayment", () => {
     // Stored as Prisma.Decimal, NOT a JS number.
     expect(row!.sourceAmount).toBeInstanceOf(Prisma.Decimal);
     expect(row!.sourceAmount.toString()).toBe("2500");
+    // Quoted destination amount (2500 x 56.70) stored at creation so the
+    // payout instruction and receipt FX stay coherent.
+    expect(row!.targetAmount?.toString()).toBe("141750");
     expect(row!.corridorFrom).toBe("USD");
     expect(row!.corridorTo).toBe("PHP");
     expect(row!.proofHash).toBe("a".repeat(64));

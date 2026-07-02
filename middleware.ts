@@ -20,7 +20,9 @@ function makeNonce(): string {
 function applySecurityHeaders(res: NextResponse, nonce: string): void {
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`, // no inline scripts
+    // No inline scripts. Dev-only 'unsafe-eval': React dev mode needs eval()
+    // for debugging features; production React never uses it, so prod stays strict.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,                    // styles only; not scripts
     `img-src 'self' data:`,
     `font-src 'self'`,
