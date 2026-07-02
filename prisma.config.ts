@@ -13,6 +13,9 @@ export default defineConfig({
   },
   migrations: {
     path: path.join("prisma", "migrations"),
-    seed: "tsx prisma/seed.ts",
+    // --conditions=react-server neutralizes the `server-only` guard (same as
+    // the worker) so the seed can share lib/ modules — notably the sample
+    // on-chain leg helper, which pulls in env/log/stellar client (#45).
+    seed: "tsx --conditions=react-server prisma/seed.ts",
   },
 });

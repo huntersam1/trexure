@@ -5,6 +5,7 @@
 ## Pre-flight (before you present)
 - `docker compose up -d` (or confirm Railway is live and `GET /api/health` → `"ok"`).
 - Local: `pnpm db:seed` then `pnpm dev` + `pnpm worker:dev` (or `pnpm worker:prod`). The seed creates the sample shielded payment (on-chain leg present, NO fiat leg) so beats 1–2 are ready instantly.
+- **For a bulletproof "is that a real tx?" answer (#45):** seed with `SEED_ONCHAIN=true pnpm db:seed` (needs a funded `STELLAR_SOURCE_SECRET`). The sample payment's on-chain leg is then a REAL, explorer-linkable `shielded_transfer` testnet tx instead of a `demo_tx_…` placeholder — Demo Replay reconciles against the genuine hash. Without the flag (or the key), it falls back to the offline placeholder so the demo still works with no network.
 - Log in as `admin`. Open the dashboard; confirm the **Demo Replay** button is enabled.
 - Open the sample payment `/payments/[id]` in a second tab (for the manual fallback).
 
