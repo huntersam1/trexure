@@ -28,8 +28,20 @@ export function Sidebar({
   return (
     <aside className="w-64 shrink-0 bg-surface border-r border-outline-variant flex flex-col">
       <div className="px-6 py-6 border-b border-outline-variant">
-        <span className="font-geist text-headline-md font-[800] tracking-tight text-on-surface">Trexure</span>
-        <p className="mt-1 text-label-mono uppercase tracking-widest font-bold text-primary/70">Treasury Ops</p>
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-on-surface p-1.5 shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.jpg"
+              alt=""
+              className="h-full w-full object-contain brightness-0 invert"
+            />
+          </span>
+          <span className="font-geist text-headline-md font-[800] tracking-tight text-on-surface">
+            Trexure
+          </span>
+        </div>
+        <p className="mt-1.5 text-label-mono uppercase tracking-widest font-bold text-primary/70">Treasury Ops</p>
       </div>
       <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
         {NAV.map((item) => {

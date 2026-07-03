@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Policy — Trexure</title>
+<meta name="description" content="How Trexure collects, uses, and safeguards information when you use our privacy-preserving treasury API for Stellar." />
+<meta name="theme-color" content="#1A1025" />
+<link rel="icon" href="logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,460..560,30..100&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav" id="top">
+  <div class="nav-inner">
+    <a class="brand" href="index.html" aria-label="Trexure home">
+      <span class="brand-mark"><img src="logo.png" alt="" /></span>
+      <span class="brand-name">Trexure<span class="dot">.</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html#features">Features</a>
+      <a href="index.html#how">How it works</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="index.html#contact">Talk to us</a>
+      <a class="btn btn-primary" href="https://app.trexure.xyz">Open app <span class="arr">→</span></a>
+      <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== LEGAL ===================== -->
+<section class="legal">
+  <div class="wrap">
+    <div class="legal-hero">
+      <span class="eyebrow">Legal</span>
+      <h1 style="margin-top:16px">Privacy Policy</h1>
+      <div class="meta">
+        <span>Last updated: July 2, 2026</span>
+        <span>·</span>
+        <span><a href="terms.html">Terms of Use →</a></span>
+      </div>
+    </div>
+
+    <div class="legal-body">
+      <aside class="toc" aria-label="Contents">
+        <h5>Contents</h5>
+        <a href="#intro">1. Introduction</a>
+        <a href="#collect">2. Information we handle</a>
+        <a href="#use">3. How we use it</a>
+        <a href="#shield">4. Shielded payments &amp; view keys</a>
+        <a href="#share">5. Sharing</a>
+        <a href="#retain">6. Data retention</a>
+        <a href="#security">7. Data security</a>
+        <a href="#cookies">8. Cookies</a>
+        <a href="#rights">9. Your rights</a>
+        <a href="#links">10. Third-party links</a>
+        <a href="#changes">11. Changes to this policy</a>
+        <a href="#contact">12. Contact us</a>
+      </aside>
+
+      <div class="prose">
+        <h2 id="intro"><span class="n">01</span>Introduction</h2>
+        <p>Trexure (“we,” “us”) is a privacy-preserving treasury API for Stellar, operated by Artisam Labs. We are committed to safeguarding your privacy. This policy explains what information we handle when you visit our website, open the app, or use our APIs to shield, reconcile, and receipt payments.</p>
+        <p>By using Trexure, you agree to the practices described here. If you do not agree, please do not use the service.</p>
+
+        <h2 id="collect"><span class="n">02</span>Information we handle</h2>
+        <p>We collect only what is required to operate a multi-tenant treasury product, and we minimize personal data wherever possible.</p>
+        <ul>
+          <li><strong>Account information:</strong> username and tenant name you provide at sign-up. We do not offer social login or email magic links.</li>
+          <li><strong>Authentication data:</strong> an argon2id hash of your password (never the plaintext) and a hashed session token in a cookie.</li>
+          <li><strong>Payment metadata:</strong> corridors (e.g. USD→PHP), amounts, a shared <em>intent id</em> used for reconciliation, and opaque recipient references. We minimize PII — we never store raw recipient identity on-chain.</li>
+          <li><strong>Shielded payloads:</strong> ZK-encrypted payment blobs and proof hashes. These are opaque ciphertext; we cannot read them without your view key.</li>
+          <li><strong>Usage &amp; log data:</strong> pages and API endpoints accessed, audit events (login, view-key decrypt, key creation), IP, and user-agent. Logs redact tokens and secrets.</li>
+          <li><strong>Cookies:</strong> small device files used for essential session handling and, if you accept, analytics.</li>
+        </ul>
+
+        <h2 id="use"><span class="n">03</span>How we use your information</h2>
+        <ul>
+          <li>To authenticate sessions, scope every query to your tenant, and run the reconciliation worker.</li>
+          <li>To generate the unified, accounting-ready receipt for your payments.</li>
+          <li>To respond to support inquiries and provide tenant administration.</li>
+          <li>To maintain an audit trail of sensitive actions (view-key decryption, key rotation, admin operations).</li>
+          <li>To improve the product, monitor health, and detect fraud or abuse.</li>
+          <li>To fulfill legal and regulatory obligations.</li>
+        </ul>
+
+        <h2 id="shield"><span class="n">04</span>Shielded payments &amp; view keys</h2>
+        <div class="callout">
+          <strong>The privacy model:</strong> payments are ZK-shielded on-chain. The public Stellar ledger sees only a proof hash — no sender, no recipient, no amount. Your tenant holds a <em>view key</em> that decrypts the shielded payload <strong>server-side, on demand</strong>. The view key itself is stored encrypted at rest (AES-256-GCM) and is <strong>never</strong> returned to the client or written to logs.
+        </div>
+        <p>Decryption is audit-logged. You may disclose a decrypted payload to a regulator you choose; we do not disclose it on your behalf.</p>
+
+        <h2 id="share"><span class="n">05</span>Sharing your information</h2>
+        <p>We do not sell or rent personal information. Sharing is limited to:</p>
+        <ul>
+          <li><strong>Service providers:</strong> infrastructure vendors (e.g. hosting, database, queue, object storage) bound by confidentiality agreements. Secrets never leave server-side code paths.</li>
+          <li><strong>Fiat anchors / payout providers:</strong> only the opaque references needed to settle a payout, under your anchor configuration.</li>
+          <li><strong>Legal authorities:</strong> where disclosure is required by law, and only to the extent required.</li>
+        </ul>
+
+        <h2 id="retain"><span class="n">06</span>Data retention</h2>
+        <p>We retain information as long as needed to fulfill the purposes here or as required by law. Payment and receipt records are retained for the period needed for accounting and compliance. Audit logs are retained on a defined schedule. You may request deletion of your data, subject to legal retention duties.</p>
+
+        <h2 id="security"><span class="n">07</span>Data security</h2>
+        <p>We apply technical and organizational safeguards: validated input, encrypted secrets at rest, HMAC-verified webhooks, tenant isolation enforced in every query, strict security headers, and rate-limited auth and API routes. No method of internet transmission is completely secure, but we treat your data with institutional-grade care.</p>
+
+        <h2 id="cookies"><span class="n">08</span>Cookies</h2>
+        <p>We use three kinds:</p>
+        <ul>
+          <li><strong>Essential cookies</strong> — required for authentication and session handling.</li>
+          <li><strong>Analytics cookies</strong> — visitor behavior, only if you accept.</li>
+          <li><strong>Preference cookies</strong> — remembering your settings, such as your cookie choice.</li>
+        </ul>
+        <p>You can manage cookies through your browser controls. Our consent prompt lets you accept or decline non-essential cookies.</p>
+
+        <h2 id="rights"><span class="n">09</span>Your rights</h2>
+        <p>You may access, correct, or delete your data, withdraw consent, and opt out of marketing communications by contacting <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a>. Where applicable, you also have rights to portability and objection to processing.</p>
+
+        <h2 id="links"><span class="n">10</span>Third-party links</h2>
+        <p>Our site may link to external websites (for example, Artisam Labs or our app). We are not responsible for the privacy practices of those external sites and encourage you to read their policies.</p>
+
+        <h2 id="changes"><span class="n">11</span>Changes to this policy</h2>
+        <p>We may update this policy from time to time. We will post the revised version on this page with an updated date. Continued use of the service after a change signifies acceptance of the updated policy.</p>
+
+        <h2 id="contact"><span class="n">12</span>Contact us</h2>
+        <p>Questions about this policy? Reach the Trexure team:</p>
+        <ul>
+          <li><strong>Email:</strong> <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a></li>
+          <li><strong>Operator:</strong> Artisam Labs — <a href="https://artisam.xyz">artisam.xyz</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="brand" href="index.html" aria-label="Trexure home">
+          <span class="brand-mark"><img src="logo.png" alt="" /></span>
+          <span class="brand-name">Trexure<span class="dot">.</span></span>
+        </a>
+        <p class="footer-tag">A unified, privacy-preserving treasury API for Stellar. Shielded on-chain, reconciled with fiat, delivered as a clean receipt.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="https://app.trexure.xyz">Open the app</a>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#how">How it works</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="https://app.trexure.xyz">Download the Chrome extension</a>
+        <a href="mailto:trexure@artisam.xyz">Contact us</a>
+        <a href="https://artisam.xyz">Artisam Labs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Use</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="yr">2026</span> Trexure. A product of <a href="https://artisam.xyz">Artisam Labs</a>.</span>
+      <span>
+        <a href="https://app.trexure.xyz">app.trexure.xyz</a><span class="sep">·</span>
+        <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a><span class="sep">·</span>
+        <a href="privacy.html">Privacy</a><span class="sep">·</span>
+        <a href="terms.html">Terms</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,331 +1,290 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Trexure — A unified treasury API for Stellar</title>
-<meta name="description" content="Shield a Stellar payment on-chain, decrypt it internally, reconcile it automatically, and hand accounting a Stripe-style receipt." />
-<!-- Self-contained: no external fonts, scripts, or network calls. Renders offline. -->
-<style>
-  :root {
-    --primary: #8E44AD;        /* violet — primary brand */
-    --primary-container: #F5EEF8;
-    --on-primary-container: #2E1A47;
-    --accent: #D4AF37;         /* gold — single accent */
-    --ink: #1A1025;            /* deep aubergine-black */
-    --muted: #5B4A70;
-    --bg: #F7F9FB;             /* off-white */
-    --surface: #ffffff;
-    --surface-alt: #F2F4F6;
-    --outline: #E5E7EB;
-    --font-display: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --maxw: 1080px;
-  }
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    font-family: var(--font-body);
-    color: var(--ink);
-    background: var(--bg);
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: inherit; }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
-  .mono { font-family: var(--font-mono); }
-
-  /* ---- Nav ---- */
-  header.nav {
-    position: sticky; top: 0; z-index: 10;
-    background: rgba(247,249,251,0.85);
-    backdrop-filter: saturate(180%) blur(12px);
-    border-bottom: 1px solid var(--outline);
-  }
-  .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; }
-  .brand svg { display: block; }
-  .nav-cta { display: flex; align-items: center; gap: 8px; }
-
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--font-body); font-weight: 500; font-size: 15px;
-    padding: 10px 18px; border-radius: 10px; text-decoration: none;
-    border: 1px solid transparent; cursor: pointer; transition: all .15s ease;
-    white-space: nowrap;
-  }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover { background: #7d3a99; transform: translateY(-1px); }
-  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--outline); }
-  .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
-  .btn-link { background: transparent; padding: 10px 6px; color: var(--muted); }
-  .btn-link:hover { color: var(--primary); }
-
-  /* ---- Hero ---- */
-  .hero { padding: 88px 0 64px; position: relative; overflow: hidden; }
-  .hero::before {
-    content: ""; position: absolute; inset: -40% 30% auto -10%; height: 620px;
-    background: radial-gradient(closest-side, rgba(142,68,173,0.10), transparent 70%);
-    pointer-events: none;
-  }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--muted); background: var(--surface); border: 1px solid var(--outline);
-    padding: 6px 12px; border-radius: 999px; margin-bottom: 24px;
-  }
-  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  h1 {
-    font-family: var(--font-display); font-weight: 600;
-    font-size: clamp(34px, 5.2vw, 58px); line-height: 1.05; letter-spacing: -0.025em;
-    margin: 0 0 20px; max-width: 16ch;
-  }
-  h1 .grad { color: var(--primary); }
-  .lede { font-size: clamp(17px, 2.1vw, 20px); color: var(--muted); max-width: 60ch; margin: 0 0 32px; }
-  .lede .kbd { font-family: var(--font-mono); font-size: 0.92em; color: var(--ink); }
-  .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-
-  /* ---- Flow (four beats) ---- */
-  .flow { padding: 24px 0 40px; }
-  .flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .beat {
-    background: var(--surface); border: 1px solid var(--outline); border-radius: 14px;
-    padding: 22px 20px; position: relative;
-  }
-  .beat .n { font-family: var(--font-mono); font-size: 12px; color: var(--accent); font-weight: 600; }
-  .beat h3 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 10px 0 6px; letter-spacing: -0.01em; }
-  .beat p { margin: 0; font-size: 14px; color: var(--muted); }
-  .beat .arrow { position: absolute; right: -11px; top: 50%; transform: translateY(-50%); color: var(--outline); z-index: 1; }
-  .beat:last-child .arrow { display: none; }
-
-  /* ---- Section scaffolding ---- */
-  section.band { padding: 72px 0; }
-  section.band.alt { background: var(--surface); border-top: 1px solid var(--outline); border-bottom: 1px solid var(--outline); }
-  .kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--primary); margin: 0 0 12px; }
-  h2 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.6vw, 38px); letter-spacing: -0.02em; margin: 0 0 16px; }
-  .section-lede { color: var(--muted); max-width: 62ch; font-size: 17px; margin: 0 0 36px; }
-
-  /* ---- Moat ---- */
-  .moat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .moat {
-    background: var(--bg); border: 1px solid var(--outline); border-radius: 16px; padding: 28px 24px;
-  }
-  section.band.alt .moat { background: var(--surface-alt); }
-  .moat .tag { font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: 0.04em; }
-  .moat h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 14px 0 8px; letter-spacing: -0.01em; }
-  .moat p { margin: 0; color: var(--muted); font-size: 15px; }
-
-  /* ---- Honesty table ---- */
-  .honest { border: 1px solid var(--outline); border-radius: 16px; overflow: hidden; background: var(--surface); }
-  .honest-row { display: grid; grid-template-columns: 180px 1fr; gap: 0; border-top: 1px solid var(--outline); }
-  .honest-row:first-child { border-top: 0; }
-  .honest-row .k { padding: 18px 20px; font-family: var(--font-mono); font-size: 13px; background: var(--surface-alt); display: flex; align-items: center; gap: 10px; }
-  .honest-row .v { padding: 18px 20px; font-size: 15px; color: var(--muted); }
-  .pill { font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; letter-spacing: 0.03em; }
-  .pill.real { color: #1b5e20; background: #e6f4ea; }
-  .pill.mock { color: #8a5a00; background: #fdf1d6; }
-
-  /* ---- CTA band ---- */
-  .final { text-align: center; }
-  .final h2 { margin-bottom: 10px; }
-  .final .section-lede { margin: 0 auto 28px; }
-  .final .hero-cta { justify-content: center; }
-
-  /* ---- Footer ---- */
-  footer { padding: 40px 0; border-top: 1px solid var(--outline); color: var(--muted); font-size: 14px; }
-  .foot-inner { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
-  footer a { color: var(--muted); text-decoration: none; }
-  footer a:hover { color: var(--primary); }
-
-  @media (max-width: 860px) {
-    .flow-grid { grid-template-columns: repeat(2, 1fr); }
-    .beat .arrow { display: none; }
-    .moat-grid { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 560px) {
-    .flow-grid { grid-template-columns: 1fr; }
-    .honest-row { grid-template-columns: 1fr; }
-    .honest-row .k { border-bottom: 1px solid var(--outline); }
-    .nav-cta .btn-ghost { display: none; }
-  }
-</style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trexure — Private treasury for Stellar payments</title>
+<meta name="description" content="Trexure turns a privacy-preserving Stellar payment into clean, accounting-ready output. Shielded on-chain, reconciled with fiat, delivered as a Stripe-style receipt." />
+<meta name="theme-color" content="#1A1025" />
+<meta property="og:title" content="Trexure — Private treasury for Stellar" />
+<meta property="og:description" content="Shielded on-chain. Reconciled with fiat. Delivered as a Stripe-style receipt." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="logo.png" />
+<link rel="icon" href="logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,460..560,30..100&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-<!-- Logo mark: heraldic shield, two streams converging to a point (reconciliation),
-     keyhole notch in the negative space (the view key) — per LOGO.md. -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="trexure-mark" viewBox="0 0 32 32">
-    <path d="M16 2 L28 6 V15 C28 23 22.6 28 16 30 C9.4 28 4 23 4 15 V6 Z"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M10.5 9 C13 14 14.5 15.5 16 18.5 C17.5 15.5 19 14 21.5 9"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="16" cy="20.5" r="1.9" fill="currentColor"/>
-    <path d="M16 22 V25.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  </symbol>
-</svg>
-
-<header class="nav">
-  <div class="wrap nav-inner">
-    <a class="brand" href="#top" aria-label="Trexure home" style="text-decoration:none;color:var(--ink)">
-      <svg width="28" height="28" style="color:var(--primary)"><use href="#trexure-mark"/></svg>
-      Trexure
+<!-- ===================== NAV ===================== -->
+<header class="nav" id="top">
+  <div class="nav-inner">
+    <a class="brand" href="#top" aria-label="Trexure home">
+      <span class="brand-mark"><img src="logo.png" alt="" /></span>
+      <span class="brand-name">Trexure<span class="dot">.</span></span>
     </a>
-    <nav class="nav-cta">
-      <a class="btn btn-link" href="#how">How it works</a>
-      <a class="btn btn-ghost" href="/login">Sign in</a>
-      <a class="btn btn-primary" href="/signup">Create a workspace</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="#contact">Contact</a>
     </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="#contact">Talk to us</a>
+      <a class="btn btn-primary" href="https://app.trexure.xyz">Open app <span class="arr">→</span></a>
+      <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
   </div>
 </header>
 
-<main id="top">
-  <!-- HERO -->
-  <section class="hero">
-    <div class="wrap">
-      <span class="eyebrow"><span class="dot"></span> Stellar-native · ZK-private · locally reconciled</span>
-      <h1>A unified <span class="grad">treasury API</span> for Stellar.</h1>
-      <p class="lede">
-        Shield a payment <span class="kbd">on-chain</span>, decrypt it internally with your own view key,
-        reconcile it automatically against the fiat leg, and hand accounting a
-        receipt that looks like Stripe's.
-      </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary" href="/signup">Create a workspace</a>
-        <a class="btn btn-ghost" href="/login">Sign in</a>
-        <a class="btn btn-link" href="../docs/demo/trexure-demo.mp4">▶ Watch the 3-min demo</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOUR-BEAT FLOW -->
-  <section class="flow" id="how">
-    <div class="wrap">
-      <div class="flow-grid">
-        <div class="beat">
-          <span class="n">01</span>
-          <h3>Shield</h3>
-          <p>A private payment goes to Stellar. The public ledger shows nothing — no sender, receiver, or amount.</p>
-          <svg class="arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow reveal">Unified Treasury API · Stellar</span>
+        <h1 class="reveal d1">
+          The private treasury<br />
+          for <span class="accent">Stellar</span> payments,<br />
+          reconciled to <span class="goldbar">fiat</span>.
+        </h1>
+        <p class="lead hero-sub reveal d2">
+          Trexure shields a Stellar payment on-chain, reconciles it against the
+          off-chain fiat leg, and emits one clean, accounting-ready receipt.
+          The blockchain disappears — your books stay beautiful.
+        </p>
+        <div class="hero-cta reveal d3">
+          <a class="btn btn-gold" href="https://app.trexure.xyz">Open the app <span class="arr">→</span></a>
+          <a class="btn btn-ghost" href="#how">See how it works</a>
         </div>
-        <div class="beat">
-          <span class="n">02</span>
-          <h3>Decrypt</h3>
-          <p>The paying tenant applies its own view key, server-side, to recover the payload only it can read.</p>
-          <svg class="arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="beat">
-          <span class="n">03</span>
-          <h3>Reconcile</h3>
-          <p>A worker matches the on-chain leg against the fiat payout webhook by intent — one verified truth.</p>
-          <svg class="arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div class="beat">
-          <span class="n">04</span>
-          <h3>Receipt</h3>
-          <p>A Stripe-shaped receipt — FX rate, fees, slippage, both references — drops straight into accounting.</p>
+        <div class="hero-trust reveal d4">
+          <span class="pulse" aria-hidden="true"></span>
+          <span>ZK-shielded · server-side decrypt · multi-tenant</span>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- PROBLEM -->
-  <section class="band alt">
-    <div class="wrap">
-      <p class="kicker">The problem</p>
-      <h2>On a public ledger, privacy is all-or-nothing.</h2>
-      <p class="section-lede">
-        A Stellar payment is either fully public — any competitor scraping the ledger sees sender,
-        recipient, and amount — or, once routed through a ZK privacy pool, opaque to everyone,
-        including the paying company's own finance team. But finance still has to prove
-        <em>"on-chain hash&nbsp;X produced bank deposit&nbsp;Y"</em> for AML/KYC and bookkeeping.
-        Existing privacy tooling proves a payment happened; it doesn't reconcile that proof against
-        the real fiat leg or turn it into something an accountant can use. Trexure closes that gap.
-      </p>
-    </div>
-  </section>
+      <div class="hero-visual reveal d2">
+        <!-- Hero cover image: generation prompt placeholder -->
+        <figure class="gen" role="img" aria-label="Hero cover image placeholder">
+          <figcaption class="gen-caption">
+            <span class="lbl">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+              Hero cover image — generation prompt
+            </span>
+            <p>Wide cinematic hero, abstract private treasury: two luminous ribbon streams — royal violet (#8E44AD) and metallic gold (#D4AF37) — flowing through a deep aubergine-black (#1A1025) void, converging to one bright point at lower center forming a subtle upward arrow. Volumetric fog, fine grain, restrained institutional-fintech aesthetic (Stripe/Mercury). No text, no coins, no blockchain clichés. 16:7, negative space top-left for headline.</p>
+          </figcaption>
+        </figure>
 
-  <!-- MOAT -->
-  <section class="band">
-    <div class="wrap">
-      <p class="kicker">The moat</p>
-      <h2>Three things that are hard to copy together.</h2>
-      <div class="moat-grid">
-        <div class="moat">
-          <span class="tag">// stellar-native</span>
-          <h3>Built on Stellar</h3>
-          <p>Real testnet transactions and Soroban smart contracts — not a simulation bolted onto a database.</p>
-        </div>
-        <div class="moat">
-          <span class="tag">// zk-private</span>
-          <h3>Genuine zero-knowledge</h3>
-          <p>A Groth16 proof is re-verified <em>on-chain</em> by a Soroban BLS12-381 pairing check — the "proof is real" claim sits behind actual cryptography.</p>
-        </div>
-        <div class="moat">
-          <span class="tag">// locally reconciled</span>
-          <h3>Reconciled to a receipt</h3>
-          <p>A background worker settles the on-chain and fiat legs into one Stripe-shaped receipt your books can consume.</p>
+        <!-- The Stripe-ified receipt (live CSS mock — the actual product output) -->
+        <div class="receipt" aria-hidden="true">
+          <div class="receipt-top">
+            <span class="receipt-id">rcpt_trex_7F2A…</span>
+            <span class="badge"><span class="d"></span>SETTLED</span>
+          </div>
+          <div class="receipt-row"><span class="k">Corridor</span><span class="v">USD → PHP</span></div>
+          <div class="receipt-row"><span class="k">Source</span><span class="v amt">$2,500.00</span></div>
+          <div class="receipt-row"><span class="k">Destination</span><span class="v amt">₱141,750.00</span></div>
+          <div class="receipt-row"><span class="k">FX rate</span><span class="receipt-fx">56.70</span></div>
+          <div class="receipt-row"><span class="k">Shielded</span><span class="v">✓ yes</span></div>
+          <div class="receipt-hash">proofHash · 0x9a3f…c41e · ledger 412,887</div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- HONEST: what's real vs mocked -->
-  <section class="band alt">
-    <div class="wrap">
-      <p class="kicker">No hand-waving</p>
-      <h2>What's real vs. what's mocked.</h2>
-      <p class="section-lede">
-        This is a hackathon build with a deliberate boundary: the cryptography and the on-chain
-        settlement are genuine; the fiat provider is a faithful stand-in that fires the exact
-        signed webhook a real anchor would.
-      </p>
-      <div class="honest">
-        <div class="honest-row">
-          <div class="k"><span class="pill real">REAL</span> ZK verification</div>
-          <div class="v">Groth16 proofs are verified on-chain on Stellar testnet via a Soroban BLS12-381 multi-pairing check — not a mock.</div>
+<!-- ===================== FEATURES ===================== -->
+<section class="section features" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">What Trexure does</span>
+        <h2 class="reveal d1" style="margin-top:18px">Four jobs, done with restraint.</h2>
+      </div>
+      <p class="lead reveal d2">No blockchain in your books. No payroll leaking to the public ledger. Just a clean, verifiable receipt — every time.</p>
+    </div>
+
+    <div class="feat-grid">
+      <article class="feat reveal d1">
+        <span class="num">01</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l8 3v5.5c0 4.8-3.4 8.6-8 9.5-4.6-.9-8-4.7-8-9.5V6l8-3z"/><path d="M9 12l2 2 4-4" stroke="#D4AF37"/></svg>
         </div>
-        <div class="honest-row">
-          <div class="k"><span class="pill real">REAL</span> On-chain leg</div>
-          <div class="v">Payments submit real Soroban transactions; a worker watches the contract event and confirms them.</div>
+        <h3>Shielded by default</h3>
+        <p>Every payment is ZK-shielded. The public ledger sees a proof hash — never sender, recipient, or amount.</p>
+      </article>
+
+      <article class="feat reveal d2">
+        <span class="num">02</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 8c3-3 6 3 9 0M4 16c3-3 6 3 9 0"/><path d="M16 8l4 4-4 4M16 16l4-4" stroke="#D4AF37"/></svg>
         </div>
-        <div class="honest-row">
-          <div class="k"><span class="pill real">REAL</span> Shield · decrypt · reconcile</div>
-          <div class="v">View-key decryption, intent-based reconciliation, and the Stripe-shaped receipt all run for real.</div>
+        <h3>Auto-reconciled</h3>
+        <p>The on-chain leg and the fiat leg meet on one shared reference. We match them automatically — pending to settled.</p>
+      </article>
+
+      <article class="feat reveal d3">
+        <span class="num">03</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 8h6M9 12h6M9 16h3" stroke="#D4AF37"/></svg>
         </div>
-        <div class="honest-row">
-          <div class="k"><span class="pill mock">MOCK</span> Fiat anchor</div>
-          <div class="v">A built-in Mock Anchor stands in for a real provider (e.g. Xendit), firing the same HMAC-signed webhook so it swaps in later without changing the contract.</div>
+        <h3>Stripe-style receipts</h3>
+        <p>FX, fees, slippage, both references, and a privacy block — in one JSON object that pipes straight into your accounting.</p>
+      </article>
+
+      <article class="feat reveal d4">
+        <span class="num">04</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="M12.5 12.5L20 20M9 6.5v5M6.5 9h5" stroke="#D4AF37"/></svg>
         </div>
+        <h3>Your view key, your control</h3>
+        <p>You hold the key; we decrypt server-side on demand. The key is never returned, never logged — audit-trail included.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== LIFECYCLE / HOW IT WORKS ===================== -->
+<section class="section life" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">The lifecycle</span>
+        <h2 class="reveal d1" style="margin-top:18px">One payment, four states.</h2>
+      </div>
+      <p class="lead reveal d2">From an opaque shield on the public ledger to a settled receipt your accountant loves — the path is the same every time.</p>
+    </div>
+
+    <div class="life-grid">
+      <div class="life-step reveal d1">
+        <div class="life-dot">1</div>
+        <span class="life-tag">The shield</span>
+        <h3>Public ledger view</h3>
+        <p>A competitor scraping Stellar sees only a proof hash and a “Shielded” badge. No payroll leaks.</p>
+      </div>
+      <div class="life-step reveal d2">
+        <div class="life-dot">2</div>
+        <span class="life-tag">The decrypt</span>
+        <h3>Apply view key</h3>
+        <p>Your key unwraps the payload server-side. Sender, recipient, and amount appear — for your eyes only.</p>
+      </div>
+      <div class="life-step reveal d3">
+        <div class="life-dot">3</div>
+        <span class="life-tag">The match</span>
+        <h3>Auto-reconcile</h3>
+        <p>A signed fiat webhook arrives. We stitch the on-chain hash to the bank reference on a shared intent id.</p>
+      </div>
+      <div class="life-step reveal d4">
+        <div class="life-dot">4</div>
+        <span class="life-tag">The output</span>
+        <h3>Unified receipt</h3>
+        <p>A clean, Stripe-ified receipt — copy JSON, export PDF. The blockchain is completely abstracted away.</p>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- FINAL CTA -->
-  <section class="band final">
-    <div class="wrap">
-      <h2>See a shielded payment become a receipt.</h2>
-      <p class="section-lede">Spin up an isolated workspace and run the flow end-to-end, or watch the recorded demo first.</p>
-      <div class="hero-cta">
-        <a class="btn btn-primary" href="/signup">Create a workspace</a>
-        <a class="btn btn-ghost" href="/login">Sign in</a>
-        <a class="btn btn-link" href="../docs/demo/trexure-demo.mp4">▶ Watch the demo</a>
+<!-- ===================== SHOWCASE (dark) ===================== -->
+<section class="section showcase">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">Built for the books</span>
+        <h2 class="reveal d1" style="margin-top:18px">Serious fintech,<br />not crypto.</h2>
+      </div>
+      <p class="lead reveal d2">Trexure is multi-tenant SaaS with a restrained palette and one accent. Monospace lives only where it belongs — hashes and JSON. Everything else reads like a statement from your bank.</p>
+    </div>
+
+    <figure class="gen reveal d2" role="img" aria-label="Dashboard cover image placeholder" style="aspect-ratio:16/8; max-width:980px; margin:0 auto;">
+      <figcaption class="gen-caption">
+        <span class="lbl">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
+          Product showcase image — generation prompt
+        </span>
+        <p>Editorial product screenshot in restrained fintech style: a calm dashboard on off-white (#F7F9FB) with a single settlement card, a KPI strip, a monospace transaction hash, and a gold (#D4AF37) “Settled” badge. Deep aubergine-black (#1A1025) sidebar. No charts, no crypto imagery, no neon. Mercury/Stripe restraint. 16:8, soft shadow.</p>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ===================== CONTACT ===================== -->
+<section class="section contact" id="contact">
+  <div class="wrap">
+    <div class="contact-card reveal">
+      <span class="eyebrow">Contact us</span>
+      <h2 style="margin-top:20px">Let's settle your treasury.</h2>
+      <p>Questions, demos, or integrations — reach the Trexure team directly. We read every message.</p>
+      <a class="contact-email" href="mailto:trexure@artisam.xyz">
+        <span class="at">@</span>trexure.artisam.xyz
+      </a>
+      <div class="contact-ctas">
+        <a class="btn btn-gold" href="https://app.trexure.xyz">Open the app <span class="arr">→</span></a>
+        <a class="btn btn-dark-ghost" href="mailto:trexure@artisam.xyz">Email us</a>
       </div>
     </div>
-  </section>
-</main>
+  </div>
+</section>
 
-<footer>
-  <div class="wrap foot-inner">
-    <span class="brand" style="font-size:16px">
-      <svg width="22" height="22" style="color:var(--primary)"><use href="#trexure-mark"/></svg>
-      Trexure
-    </span>
-    <span class="mono" style="font-size:12px;color:var(--muted)">A unified treasury API for Stellar — Stellar-native · ZK-private · locally reconciled</span>
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="brand" href="#top" aria-label="Trexure home">
+          <span class="brand-mark"><img src="logo.png" alt="" /></span>
+          <span class="brand-name">Trexure<span class="dot">.</span></span>
+        </a>
+        <p class="footer-tag">A unified, privacy-preserving treasury API for Stellar. Shielded on-chain, reconciled with fiat, delivered as a clean receipt.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="https://app.trexure.xyz">Open the app</a>
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="https://app.trexure.xyz">Download the Chrome extension</a>
+        <a href="mailto:trexure@artisam.xyz">Contact us</a>
+        <a href="https://artisam.xyz">Artisam Labs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Use</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="yr">2026</span> Trexure. A product of <a href="https://artisam.xyz">Artisam Labs</a>.</span>
+      <span>
+        <a href="https://app.trexure.xyz">app.trexure.xyz</a><span class="sep">·</span>
+        <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a><span class="sep">·</span>
+        <a href="privacy.html">Privacy</a><span class="sep">·</span>
+        <a href="terms.html">Terms</a>
+      </span>
+    </div>
   </div>
 </footer>
 
+<!-- ===================== COOKIE CONSENT ===================== -->
+<div class="cookie" role="dialog" aria-live="polite" aria-label="Cookie consent">
+  <div class="ck-ico">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3a9 9 0 1 0 9 9 4 4 0 0 1-4-4 4 4 0 0 1-4-4 1 1 0 0 0-1-1z"/><circle cx="9" cy="11" r="1" fill="currentColor"/><circle cx="13" cy="16" r="1" fill="currentColor"/><circle cx="16.5" cy="13" r="1" fill="currentColor"/></svg>
+  </div>
+  <h4>We use cookies</h4>
+  <p>We use essential cookies to keep the site working, and analytics cookies to understand how it's used. You choose. Read our <a href="privacy.html">Privacy Policy</a>.</p>
+  <div class="cookie-actions">
+    <button class="cookie-decline" type="button">Decline</button>
+    <button class="cookie-accept" type="button">Accept</button>
+  </div>
+</div>
+
+<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+<script src="app.js"></script>
 </body>
 </html>

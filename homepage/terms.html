@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Terms of Use — Trexure</title>
+<meta name="description" content="The terms that govern your use of Trexure, a privacy-preserving treasury API for Stellar." />
+<meta name="theme-color" content="#1A1025" />
+<link rel="icon" href="logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,460..560,30..100&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===================== NAV ===================== -->
+<header class="nav" id="top">
+  <div class="nav-inner">
+    <a class="brand" href="index.html" aria-label="Trexure home">
+      <span class="brand-mark"><img src="logo.png" alt="" /></span>
+      <span class="brand-name">Trexure<span class="dot">.</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html#features">Features</a>
+      <a href="index.html#how">How it works</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="index.html#contact">Contact</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-ghost" href="index.html#contact">Talk to us</a>
+      <a class="btn btn-primary" href="https://app.trexure.xyz">Open app <span class="arr">→</span></a>
+      <button class="nav-toggle" aria-label="Toggle menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== LEGAL ===================== -->
+<section class="legal">
+  <div class="wrap">
+    <div class="legal-hero">
+      <span class="eyebrow">Legal</span>
+      <h1 style="margin-top:16px">Terms of Use</h1>
+      <div class="meta">
+        <span>Last updated: July 2, 2026</span>
+        <span>·</span>
+        <span><a href="privacy.html">Privacy Policy →</a></span>
+      </div>
+    </div>
+
+    <div class="legal-body">
+      <aside class="toc" aria-label="Contents">
+        <h5>Contents</h5>
+        <a href="#accept">1. Acceptance of terms</a>
+        <a href="#use">2. Use of the service</a>
+        <a href="#service">3. The service</a>
+        <a href="#ip">4. Intellectual property</a>
+        <a href="#submissions">5. Your data &amp; submissions</a>
+        <a href="#blockchain">6. Blockchain disclaimer</a>
+        <a href="#links">7. Third-party links</a>
+        <a href="#liability">8. Limitation of liability</a>
+        <a href="#indemnify">9. Indemnification</a>
+        <a href="#law">10. Governing law</a>
+        <a href="#changes">11. Changes to these terms</a>
+        <a href="#contact">12. Contact us</a>
+      </aside>
+
+      <div class="prose">
+        <h2 id="accept"><span class="n">01</span>Acceptance of terms</h2>
+        <p>By accessing the Trexure website, app, or APIs, you agree to be bound by these Terms of Use and our <a href="privacy.html">Privacy Policy</a>. If you do not agree, please do not use the service. These terms apply to all users, including tenants, administrators, and programmatic API consumers.</p>
+
+        <h2 id="use"><span class="n">02</span>Use of the service</h2>
+        <p>You agree to use Trexure lawfully and not to:</p>
+        <ul>
+          <li>Infringe the rights of any third party.</li>
+          <li>Transmit spam, malware, or harmful content.</li>
+          <li>Attempt unauthorized access to the service, other tenants' data, or our infrastructure.</li>
+          <li>Misrepresent your identity or affiliation.</li>
+          <li>Scrape, index, or bulk-export data without written consent.</li>
+          <li>Reverse-engineer, decompile, or redistribute the service beyond what your subscription permits.</li>
+        </ul>
+        <p>You are responsible for keeping your credentials, API keys, and webhook secrets confidential. Compromised credentials must be rotated promptly.</p>
+
+        <h2 id="service"><span class="n">03</span>The service</h2>
+        <p>Trexure is a multi-tenant SaaS application that shields Stellar payments, reconciles them against fiat webhook events, and produces accounting-ready receipts. We reserve the right to modify, suspend, or discontinue any feature or service at any time, with reasonable notice where possible. New features may be subject to additional terms.</p>
+
+        <h2 id="ip"><span class="n">04</span>Intellectual property</h2>
+        <p>All website and app content — text, graphics, the Trexure logo and marks, software, and documentation — belongs to Trexure or its licensors. Reproduction or derivative works require prior written consent, except for personal, non-commercial use. The receipts and JSON objects you generate through the service are your data; Trexure retains rights to the underlying software that produces them.</p>
+
+        <h2 id="submissions"><span class="n">05</span>Your data &amp; submissions</h2>
+        <p>You retain ownership of the payment data, view keys, and receipts you create. By using the service, you grant Trexure a limited license to process that data solely to operate the service for you — shielding, reconciling, and generating receipts — and to retain audit logs as described in our <a href="privacy.html">Privacy Policy</a>. You confirm your data does not violate third-party rights.</p>
+
+        <h2 id="blockchain"><span class="n">06</span>Blockchain &amp; financial disclaimer</h2>
+        <div class="callout">
+          <strong>Education &amp; tooling only — not advice.</strong> Stellar, Soroban, and digital-asset settlement carry risks including network volatility, regulatory uncertainty, and the irreversibility of on-chain transactions. Trexure provides treasury tooling, not investment, legal, tax, or accounting advice.
+        </div>
+        <p>Settlement times, FX rates, fees, and slippage reflected in a receipt are derived from the legs available at reconciliation and may not reflect external market data. You are responsible for your own accounting treatment and compliance obligations.</p>
+
+        <h2 id="links"><span class="n">07</span>Third-party links &amp; services</h2>
+        <p>The service may integrate with or link to third parties (anchors, payout providers, infrastructure, the Chrome extension marketplace). These are provided for convenience. Trexure does not endorse or assume responsibility for third-party content, practices, or service reliability.</p>
+
+        <h2 id="liability"><span class="n">08</span>Limitation of liability</h2>
+        <p>To the maximum extent permitted by law, Trexure and Artisam Labs are not liable for indirect, incidental, consequential, special, or punitive damages arising from your use of, or inability to use, the service. Our aggregate liability for any claim is limited to the amount you paid us in the preceding twelve months, or a nominal amount if the service was provided free of charge.</p>
+
+        <h2 id="indemnify"><span class="n">09</span>Indemnification</h2>
+        <p>You agree to indemnify and hold harmless Trexure and Artisam Labs from claims arising out of your use of the service, your violation of these Terms, or your infringement of third-party rights.</p>
+
+        <h2 id="law"><span class="n">10</span>Governing law</h2>
+        <p>These Terms are governed by the laws applicable to the jurisdiction in which Artisam Labs is established, without regard to conflict-of-law principles. We will seek to resolve disputes informally first; unresolved disputes shall be brought in the competent courts of that jurisdiction.</p>
+
+        <h2 id="changes"><span class="n">11</span>Changes to these terms</h2>
+        <p>We may update these Terms at any time. We will post the revised version on this page with an updated date. Continued use of the service after a change constitutes acceptance of the revisions.</p>
+
+        <h2 id="contact"><span class="n">12</span>Contact us</h2>
+        <p>Questions about these Terms? Reach the Trexure team:</p>
+        <ul>
+          <li><strong>Email:</strong> <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a></li>
+          <li><strong>Operator:</strong> Artisam Labs — <a href="https://artisam.xyz">artisam.xyz</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a class="brand" href="index.html" aria-label="Trexure home">
+          <span class="brand-mark"><img src="logo.png" alt="" /></span>
+          <span class="brand-name">Trexure<span class="dot">.</span></span>
+        </a>
+        <p class="footer-tag">A unified, privacy-preserving treasury API for Stellar. Shielded on-chain, reconciled with fiat, delivered as a clean receipt.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="https://app.trexure.xyz">Open the app</a>
+        <a href="index.html#features">Features</a>
+        <a href="index.html#how">How it works</a>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <a href="https://app.trexure.xyz">Download the Chrome extension</a>
+        <a href="mailto:trexure@artisam.xyz">Contact us</a>
+        <a href="https://artisam.xyz">Artisam Labs</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Use</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© <span id="yr">2026</span> Trexure. A product of <a href="https://artisam.xyz">Artisam Labs</a>.</span>
+      <span>
+        <a href="https://app.trexure.xyz">app.trexure.xyz</a><span class="sep">·</span>
+        <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a><span class="sep">·</span>
+        <a href="privacy.html">Privacy</a><span class="sep">·</span>
+        <a href="terms.html">Terms</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+<script src="app.js"></script>
+</body>
+</html>
