@@ -5,6 +5,157 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Real on-chain leg for the sample payment (`SEED_ONCHAIN`) — #45
+
+The sample payment behind Demo Replay (and every self-serve signup's demo
+payment) had a hardcoded **fake** on-chain leg (`demo_tx_…` / `ledger: 1234567`)
+duplicated across `prisma/seed.ts` and `lib/auth/signup.ts` — the one honesty
+caveat a judge could catch. Now the shielded_transfer contract is live (#31/#36,
+#40), so it can be a genuine testnet tx.
+
+- **Guard flag** — `SEED_ONCHAIN` (validated in `lib/env.ts`, default **false**,
+  documented in `.env.example`). When `true` **and** a funded
+  `STELLAR_SOURCE_SECRET` is present, the sample payment submits a REAL
+  `shielded_transfer` tx via `buildAndSubmitPrivatePayment` and records the real
+  `txHash`/`ledger`/`contractId`. Otherwise the offline `demo_tx_…` placeholder
+  is used, so `docker compose up && pnpm db:seed` and CI seeding still work with
+  no network / no key. Logs which path ran (`onchain: real` vs `placeholder`)
+  and falls back to the placeholder (never hard-fails) if the submit errors.
+- **One shared code path** — new `lib/payments/sample-onchain-leg.ts`
+  (`buildSampleOnchainLeg`) is used by **both** the seed and signup, so the leg
+  can't drift; the duplicated hardcoded literals are gone. The seed now runs via
+  `tsx --conditions=react-server` (like the worker) so it can share the
+  server-only-guarded lib modules.
+- **Tradeoff (first cut)** — the real leg is written synchronously as
+  `CONFIRMED` (the submit polls to inclusion and returns a real ledger), rather
+  than `PENDING` + `watch-onchain`. Simpler for the seed; the tx is genuinely
+  confirmed on submission.
+- **Docs** — `docs/deploy/railway.md` + `docs/demo/runbook.md` note
+  `SEED_ONCHAIN=true`.
+- **Tests** — `test/lib/payments/sample-onchain-leg.test.ts`: default placeholder
+  (no submission), real submit when enabled + funded, fallback on submit error,
+  and placeholder when the key isn't a valid secret.
+
+**Verification:** `pnpm run ci` (233 tests) + `pnpm build` + `pnpm zk:demo` green.
+With `SEED_ONCHAIN=true`: the seeded sample payment's on-chain leg is a real tx
+(`f7dd6a72…`, ledger 3393385) that resolves `successful: true` on Stellar
+testnet, and Demo Replay reconciled it (trigger payout → SETTLED) against the
+real hash. Default seeding stays fully offline.
+
+---
+
+## Real Groth16 proving by default (`ZK_PROVING=live`) — #46
+
+`shield()` only produced a real Groth16 commitment when `ZK_PROVING=live`, and
+that flag was read straight from `process.env` (unvalidated, undocumented) with
+the fallback as the effective default. So "Verify proof on-chain" worked on the
+seeded sample payment (its `proofHash` is a real commitment) but **failed on a
+payment a signed-up user created themselves** — the ZK story was only real for
+the seed.
+
+- **Validated + documented** — `ZK_PROVING` is now a `z.enum(["live","fallback"])`
+  in `lib/env.ts` (**default `live`**), documented in `.env.example`, and
+  consumed via `env.ZK_PROVING`. `isSppAvailable()` reads `env.*`, not raw
+  `process.env`.
+- **Real for everyone** — with the default, a user-created payment's `proofHash`
+  is the real `hexCommitment(deriveCommitment(...))`, so on-chain verify passes
+  for the self-serve path, not just the seed.
+- **Safe fallback preserved** — the labeled AES-wrap path is unchanged and never
+  presents a mocked verification as real. Live proving is local snarkjs (no
+  network); if `zk/artifacts/*` are missing at runtime, `shield` catches and
+  falls back with the existing clear log instead of crashing.
+- **Deploy docs** — `docs/deploy/railway.md` + `staging-checklist.md` note
+  `ZK_PROVING=live` on both `web` and `worker`; `docs/zk.md` explains the default
+  and its requirements.
+- **Tests** — `test/lib/env.test.ts` covers the `live` default, an explicit
+  `fallback`, and rejection of an unknown value. `lib/zk/index.test.ts` covers
+  proving-live → real-commitment `proofHash` vs fallback → labeled sha256.
+
+**Verification:** `pnpm run ci` + `pnpm build` green; `pnpm zk:demo` unaffected;
+a user-created payment's "Verify proof on-chain" returned `{ verified: true }` on
+testnet.
+
+---
+
+## Staging branch + Railway deploy dry-run — #41
+
+The MVP checkpoint treats a `staging` branch as the signal that a deploy is
+being prepared, and the Railway config (`railway.*.json`, `nixpacks.toml`,
+`scripts/release.sh`) had never been exercised. This validates it end-to-end
+locally and documents the runbook.
+
+- **`staging` branch** cut from `develop` and pushed to origin.
+- **Deploy config validated locally** against docker-compose Postgres+Redis,
+  using a throwaway `trexure_staging_dryrun` DB (dev DB untouched):
+  `scripts/release.sh` runs `prisma migrate deploy` + the `RUN_SEED_ONCE`-guarded
+  seed cleanly on a fresh DB (and skips the seed when unset); `pnpm run ci`
+  green; `pnpm build` succeeds; `pnpm worker:prod` boots + heartbeats;
+  `GET /api/health` → `200 {"status":"ok","checks":{"db":true,"redis":true,"worker":true}}`.
+- **`docs/deploy/staging-checklist.md`** — a checkable runbook enumerating every
+  Railway service variable (cross-referenced to `.env.example`), the web/worker
+  start/health/release commands, the volume mount, internal-networking
+  references (`${{Postgres.DATABASE_URL}}` / `${{Redis.REDIS_URL}}`), and the
+  intended `ENABLE_MOCK_ANCHOR=false` + `ENABLE_NEW_PAYMENTS=true` (#40) values.
+  Credential-gated steps (project/DB/Redis/volume/secrets/first deploy) are
+  clearly separated from the automatable ones.
+- **Gotcha documented:** `pnpm ci` collides with pnpm's reserved (unimplemented)
+  `ci` verb — use `pnpm run ci`. GitHub Actions runs the steps individually, so
+  CI is unaffected.
+
+---
+
+## Public landing page at `homepage/index.html` — #39
+
+The app was login-gated at `/`, so a visitor with no credentials saw only a
+sign-in box. Added a standalone, self-contained marketing page.
+
+- **`homepage/index.html`** — plain HTML + inline CSS, no framework, no build
+  step, and **zero external network dependencies** (renders offline). Reuses the
+  brand tokens from `app/globals.css` (violet `#8E44AD`, gold `#D4AF37`, ink
+  `#1A1025`, off-white `#F7F9FB`; Geist/Inter/JetBrains Mono stacks) and an
+  inline-SVG logo mark built from the `LOGO.md` concept (shield · two converging
+  streams · keyhole notch).
+- **Content, all traceable to `README.md`/`SPEC.md`** — the four-beat hero flow
+  (Shield → Decrypt → Reconcile → Receipt), the problem framing, the three-part
+  moat (Stellar-native · ZK-private · locally reconciled), and an honest
+  "what's real vs. mocked" table (ZK verification is genuinely on-chain; the
+  Mock Anchor is the only stand-in). No fabricated features, metrics, or partners.
+- **CTAs** — Sign in (`/login`), Create a workspace (`/signup`), and a link to
+  the recorded demo (`../docs/demo/trexure-demo.mp4`, resolved when served from
+  the repo root). README documents how to serve it.
+
+**Verification:** served from the repo root (`python3 -m http.server`) → HTTP
+200, `/login` + `/signup` + demo-video links all resolve; headless Chrome render
+shows no console errors and no missing assets.
+
+---
+
+## New-payment submission enabled by default — #40
+
+The gate from #32 was correct while the `shielded_transfer` contract was
+undeployed. Now that #31/#36 are merged and the create→SETTLED loop runs
+end-to-end on testnet, the SPEC's primary user action ships **on**.
+
+- **Flag flip** — `ENABLE_NEW_PAYMENTS` now defaults to **true** in `lib/env.ts`
+  and `.env.example`. `/payments/new` renders the real form (no `soon` badge)
+  and `POST /api/payments` accepts valid submissions. `false` remains a
+  deploy-time kill switch if the on-chain leg regresses.
+- **Contract drift caveat** — the app resolves the contract from
+  `env.ZK_CONTRACT_ID` only (`zk/deploy.json` is used solely by `pnpm zk:demo`).
+  Documented in `docs/deploy/railway.md` that both `web` and `worker` must carry
+  `ENABLE_NEW_PAYMENTS=true` and the #31 contract id
+  (`CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG`); a stale id
+  reproduces the "non-existent contract function shielded_transfer" failure.
+- **Tests** — new `test/lib/env.test.ts` asserts the default is `true` and that
+  an explicit `false` is still honored. The existing `test/api/payments.test.ts`
+  keeps both the gated-503 and enabled-201 paths covered.
+
+**Verification:** `pnpm ci` green (typecheck/lint/test/audit) + `pnpm build`;
+`pnpm zk:demo` still passes; end-to-end from the UI a brand-new payment reaches
+**SETTLED** with an on-chain leg whose `txHash` resolves on Stellar testnet.
+
+---
+
 ## New Payment flow env-gated until the transfer contract is live — #32
 
 "New Payment" sat in the main nav while submission 500'd (see #29/#30/#31) —

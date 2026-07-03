@@ -7,6 +7,7 @@ import { rateLimit } from "@/lib/auth/rate-limit";
 import { aesEncrypt } from "@/lib/crypto/aes";
 import { quoteTargetAmount } from "@/lib/fx";
 import { deriveCommitment, hexCommitment } from "@/lib/zk/commit";
+import { buildSampleOnchainLeg } from "@/lib/payments/sample-onchain-leg";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
@@ -57,7 +58,8 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
   // Sample shielded payment: payload encrypted under the VIEW key so
   // /decrypt round-trips; proofHash is the REAL ZK commitment for this
   // intentId so /verify-proof can regenerate + verify the proof on-chain.
-  const intentId = `intent_seed_demo_${randomBytes(12).toString("hex")}`;
+  const intentSuffix = randomBytes(12).toString("hex");
+  const intentId = `intent_seed_demo_${intentSuffix}`;
   const shieldedBlob = aesEncrypt(
     Buffer.from(
       JSON.stringify({
@@ -71,6 +73,17 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
     viewKeyMaterial, // wrap under the VIEW key so /decrypt (loadViewKey) round-trips
   );
   const proofHash = hexCommitment(deriveCommitment(viewKeyMaterial, intentId).commitment);
+
+  // Build the on-chain leg BEFORE opening the DB transaction — the real path is
+  // a network submit and must not run inside prisma.$transaction. Shared with
+  // prisma/seed.ts so the leg can't drift; offline placeholder by default (#45).
+  const onchainLeg = await buildSampleOnchainLeg({
+    intentId,
+    amount: "2500.00",
+    sourceAsset: "USDC",
+    proofHash,
+    placeholderRef: intentSuffix,
+  });
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -115,10 +128,10 @@ export async function provisionTenant(input: SignupInput): Promise<ProvisionedTe
           legs: {
             create: {
               legType: "ONCHAIN",
-              status: "CONFIRMED",
-              txHash: `demo_tx_${tenant.id.slice(0, 8)}`,
-              ledger: 1234567,
-              contractId: env.ZK_CONTRACT_ID,
+              status: onchainLeg.status,
+              txHash: onchainLeg.txHash,
+              ledger: onchainLeg.ledger,
+              contractId: onchainLeg.contractId,
             },
           },
         },
