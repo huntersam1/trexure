@@ -4,13 +4,14 @@
 
 🔐 **Trexure is a unified treasury API for Stellar** that turns a privacy-shielded on-chain payment into clean, accounting-ready output. When a company runs a payroll batch or vendor payout, Trexure shields it on the public ledger — the chain shows no sender, no recipient, and no amount, only a zero-knowledge commitment. The paying company (and *only* that company) can then apply its own view key to decrypt the payload server-side, while a background worker watches the chain and automatically reconciles the on-chain leg against the matching fiat payout as it settles. The payoff is a Stripe-style receipt 🧾 — FX rate, fees, slippage, and both the on-chain and bank references — that drops straight into QuickBooks or any accounting workflow.
 
-💡 **The problem it solves:** crypto rails are public by default, which makes them a non-starter for real finance — anyone scraping the ledger can see exactly who a company pays and how much. Existing privacy tools fix that but overshoot: once a payment is shielded it becomes opaque to the company's *own* finance and compliance teams too, who still need to prove that "on-chain hash X produced bank deposit Y" for bookkeeping, audit, and AML/KYC. Nothing in between reconciles that private proof against the real-world fiat leg or renders it as something an accountant can actually use. 📊 Trexure closes that gap: private on the outside, fully reconciled and reportable on the inside.
+💡 **The problem it solves — and why it matters for Stellar:** crypto rails are public by default, which makes them a non-starter for real corporate finance — anyone scraping the ledger can see exactly who a company pays and how much. Existing privacy tools fix that but overshoot: once a payment is shielded it becomes opaque to the company's *own* finance and compliance teams too, who still need to prove that "on-chain hash X produced bank deposit Y" for bookkeeping, audit, and AML/KYC. Nothing in between reconciles that private proof against the real-world fiat leg or renders it as something an accountant can actually use. 📊 Trexure closes that gap — private on the outside, fully reconciled and reportable on the inside — and in doing so unlocks a class of volume Stellar can't otherwise serve: **compliant, privacy-preserving business payments.** It brings enterprise payroll and treasury onto Stellar, exercises the network's newest zero-knowledge primitives (a real on-chain Groth16 / BLS12-381 verifier today, with a path to Stellar's Confidential Tokens / privacy pools next), and hands non-crypto finance teams a Stripe-style API + receipt — lowering the single biggest barrier keeping mainstream finance off crypto rails.
 
 ## Status / License
 
 | | |
 |---|---|
 | Version | `0.1.0` (from `package.json`) |
+| Stage | **Live on Stellar testnet** — real Groth16 on-chain verification + real `shielded_transfer` txs; full reconciliation → receipt spine; self-serve signup. Fiat anchor is a Mock Anchor (drop-in for a real SEP anchor); on-chain leg is a commitment recorder (not yet value-moving). See [Current state](#current-state). |
 | License | MIT |
 
 ## Problem
@@ -31,8 +32,9 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 ## Features
 
 **Payments & privacy**
-- Multi-tenant payment creation, listing, and detail views, tenant-scoped per request.
-- ZK-shielded payload storage (encrypted payload, nonce, and proof hash on each payment) with a Soroban private-payment submission path.
+- Multi-tenant payment creation, listing, and detail views, tenant-scoped per request. New-payment submission is **live by default** (`ENABLE_NEW_PAYMENTS=true`) and submits a real `shielded_transfer` transaction to Stellar testnet.
+- **Self-serve signup** (`/signup`, `POST /api/auth/signup`) provisions a fully isolated tenant — its own view key, anchor config, and a demo-ready sample shielded payment — so anyone can try the full lifecycle without admin intervention.
+- ZK-shielded payload storage (encrypted payload, nonce, and proof hash on each payment). With `ZK_PROVING=live` (the default) each payment's `proofHash` is a **real Groth16 commitment**, so on-chain proof verification works for user-created payments, not just the seed; a clearly-labeled AES-wrap fallback keeps offline/CI runs working and never fakes verification.
 - Server-side view-key decrypt (`POST /api/payments/[id]/decrypt`) — the key is loaded, used, zeroized, and never returned to the client or logged; the action is audit-logged.
 - On-chain Groth16 proof re-verification (`POST /api/payments/[id]/verify-proof`), backed by a real Soroban BLS12-381 pairing check (see [Smart Contracts](#smart-contracts)).
 
@@ -61,7 +63,51 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 
 ## Architecture
 
+One Railway project runs two Node services — a Next.js **web** app and a standalone BullMQ **worker** — against a shared PostgreSQL 17 and Redis. The web app submits shielded transfers to Stellar (Soroban) testnet and verifies proofs on-chain; the worker watches the chain and reconciles the on-chain leg against the fiat webhook by `intentId`.
+
+```mermaid
+flowchart TB
+    subgraph Client
+        B[Browser · Next.js RSC UI]
+    end
+    subgraph Web["web service (Next.js 16)"]
+        MW[middleware.ts<br/>session gate + CSP/HSTS]
+        API["Route handlers<br/>/api/**"]
+        LIB[lib/* services<br/>zk · payments · reconcile · anchor · crypto · pdf]
+    end
+    subgraph Worker["worker service (BullMQ)"]
+        WON[watch-onchain job]
+        REC[reconcile job]
+    end
+    subgraph Data
+        PG[(PostgreSQL 17<br/>Prisma 7)]
+        RED[(Redis<br/>queues · rate limit · idempotency)]
+        S3[(S3-compatible<br/>MinIO dev / Railway Volume prod)]
+    end
+    subgraph Stellar["Stellar / Soroban testnet"]
+        RPC[Soroban RPC + Horizon]
+        VC["groth16-verifier + shielded_transfer<br/>(Rust/Soroban contract)"]
+    end
+    ANCHOR["Fiat anchor<br/>Mock Anchor (drop-in for a real SEP anchor)"]
+
+    B -->|HTTPS + session cookie| MW --> API --> LIB
+    LIB -->|Prisma| PG
+    LIB -->|ioredis| RED
+    LIB -->|PDF export| S3
+    LIB -->|submit tx / verify proof| RPC --> VC
+    API -->|enqueue watch-onchain / reconcile| RED
+    WON -->|poll getEvents| RPC
+    WON -->|write OnchainLeg| PG
+    REC -->|match legs → SETTLED + Receipt| PG
+    ANCHOR -->|HMAC-signed webhook| API
+    API -->|POST /api/mock-anchor/payout| ANCHOR
+```
+
+<details><summary>Rendered architecture diagram (image)</summary>
+
 ![Trexure architecture — one Railway project runs the web and worker services against shared Postgres and Redis, submitting shielded transfers to Stellar testnet and reconciling the on-chain and fiat legs by intentId into a single receipt.](docs/architecture-diagram.png)
+
+</details>
 
 ## Sequence diagrams
 
@@ -163,11 +209,12 @@ sequenceDiagram
 
 ## Smart Contracts
 
-| Crate | Purpose |
+| Entrypoint | Purpose |
 |---|---|
-| `groth16-verifier` | Soroban contract that verifies a Groth16 zero-knowledge proof on-chain via a BLS12-381 multi-pairing check (`env.crypto().bls12_381()`), gating the "proof is real" claim behind actual on-chain cryptography rather than a mock. Built with `soroban-sdk = "22"`, compiled to `cdylib`/wasm. |
+| `verify` | Verifies a Groth16 zero-knowledge proof on-chain via a BLS12-381 multi-pairing check (`env.crypto().bls12_381()`), gating the "proof is real" claim behind actual on-chain cryptography rather than a mock. Built with `soroban-sdk = "22"`, compiled to `cdylib`/wasm. **Real, never mocked.** |
+| `shielded_transfer` | Records a payment's commitment on-chain as a contract event (`topics=(intentId,)`, `data=commitment`) that the `watch-onchain` worker confirms against. **Honest scope:** it is a *commitment recorder* — it anchors the intent + ZK commitment on-chain but does **not** move tokens and keeps no note/nullifier state. |
 
-A git submodule points at a not-yet-configured fork of Nethermind's Stellar Private Payments repo — the intended source of privacy-pool contracts and circuits for new shielded-payment *submission* (as opposed to the verification path above, which is already live).
+**Roadmap for the on-chain layer:** the natural next step is to move real private *value*, not just anchor a commitment. As of June 2026 Stellar shipped **Confidential Tokens** (private SEP-41 balances/transfer amounts, via an OpenZeppelin contract suite + Nethermind verifier) and **Privacy Pools** — both aimed squarely at payroll/treasury. Migrating `shielded_transfer` onto those primitives replaces the bespoke recorder with real, compliant private value transfer while keeping the same selective-disclosure model. See [issue #52](https://github.com/webnxt-2030/trexure/issues/52) for the full integration plan.
 
 ### Live on Stellar testnet
 
@@ -186,6 +233,25 @@ payment that reconciled to a `SETTLED` receipt):
 | Seeded demo (USD→PHP), `intent_seed_demo_usd_php_0001` | 2,500.00 USDC | [`d7e20c08…2d5b`](https://stellar.expert/explorer/testnet/tx/d7e20c085d98b4856bed85ea179b3fa90feb7a6b80c419419e6b70064f2a2d5b) |
 | User-created payment | 1,234.56 USDC | [`d50a067e…66ee1`](https://stellar.expert/explorer/testnet/tx/d50a067ed0d3279db47dfac6db6603de65b7c2e8beee75eef4a4c1d2c3566ee1) |
 | User-created payment | 321.00 USDC | [`afd8d6e9…46ca3`](https://stellar.expert/explorer/testnet/tx/afd8d6e93e13e494a2c8cf9452802a3bc293165ffcec7caa694acc2dbef46ca3) |
+
+## Current state
+
+An honest snapshot of what is real, what is mocked, and what is next. The reconciliation → receipt spine and the ZK verification are genuine; the only external mock is the fiat provider.
+
+| Area | State |
+|---|---|
+| Reconciliation spine (webhook → legs → `SETTLED` → receipt) | ✅ **Real**, end-to-end, covered by tests |
+| Auth · sessions · rate-limiting · tenant isolation | ✅ **Real** (argon2id, Redis, Prisma `forTenant()`; isolation tested) |
+| View-key shield / decrypt (AES-256-GCM) | ✅ **Real**, server-side, audit-logged |
+| Groth16 proof **verification on-chain** (BLS12-381 pairing) | ✅ **Real** on Stellar testnet — never mocked |
+| New-payment on-chain submission (`shielded_transfer`) | ✅ **Real testnet tx**, but a *commitment recorder* — no value movement, no notes/nullifiers |
+| Fiat anchor | 🟡 **Mock Anchor only** — fires the *same* HMAC-signed webhook a real anchor would; a real SEP-24/SEP-31 anchor (or Xendit) is a drop-in via `ANCHOR_PROVIDER` |
+| Network | 🟡 **Testnet only** (enforced by the `STELLAR_NETWORK` schema) |
+| Privacy pool / value-moving confidential transfer | 🔭 **Roadmap** — migrate to Stellar Confidential Tokens / Privacy Pools ([#52](https://github.com/webnxt-2030/trexure/issues/52)) |
+
+Feature flags & defaults: `ENABLE_NEW_PAYMENTS=true`, `ZK_PROVING=live`, `SEED_ONCHAIN=false` (set `true` + a funded key to make the seeded/signup sample payment a real testnet tx), `ANCHOR_PROVIDER=mock-anchor`, `ENABLE_MOCK_ANCHOR=true` (set `false` in production). Test suite: **233 tests** across 61 files (`pnpm run ci`).
+
+**Against SPEC.md §15**, every acceptance item is met except that new payments record a *commitment* on-chain rather than moving value (SPEC §3 explicitly allows the Groth16-verifier path as the honest fallback). All 10 spec pages and all §5 endpoints exist (plus `/signup`, `verify-proof`, `demo-reset`, `receipt/pdf`); the Prisma schema matches §7.
 
 ## Tech Stack
 
