@@ -5,6 +5,34 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P2: withdraw circuit + trusted setup — #61
+
+Second slice of the shielded-pool epic (#59): the zero-knowledge withdraw
+statement that makes payouts unlinkable — prove ownership of a deposit note in
+the Merkle tree + a fresh nullifier, without revealing which deposit.
+
+- `zk/circuits/withdraw.circom` — Tornado-style: `commitmentHash(secret,
+  nullifier, amount)` leaf, `nullifierHash` check, MiMC Merkle membership to a
+  public `root`; public signals `[root, nullifierHash, recipient, amount]`.
+  **Depth 12** (4096-leaf set) so the setup fits a 2^16 BLS12-381 ptau.
+- `zk/circuits/mimcsponge.circom` + `mimc_constants.circom` (auto-generated from
+  P1's `mimc-golden.json`) — MiMCSponge matching `lib/pool/mimc.ts` exactly; the
+  in-circuit hashes reproduce every P1 golden vector
+  (`zk/scripts/mimc-circuit-crosscheck.mjs`). One documented last-round deviation
+  from stock circomlib to match P1 (the source of truth).
+- `lib/pool/address.ts` — `recipientToField` encodes a Stellar key as the
+  circuit's `recipient` field element (reused by P3/P4).
+- Committed artifacts in `zk/artifacts/`: `withdraw.wasm`, `withdraw.r1cs`,
+  `withdraw_final.zkey`, `withdraw_vk.json`, and a proof fixture
+  (`withdraw_proof.json` / `withdraw_public.json`).
+- `zk/withdraw-circuit.test.ts` — fast (zkey-free) verify of the fixture
+  (positive + tampered-recipient negative), vk shape, and constant transcription.
+- `zk/scripts/build-withdraw.sh` — reproducible compile + demo-grade setup +
+  prove/verify. **Trusted setup is demo-grade (single contributor), not a
+  ceremony — not for real value.**
+
+No runtime/product surface changes (ZK tooling + artifacts only).
+
 ## Shielded pool P1: MiMC golden vectors (circom / Rust / TS) — #60
 
 First slice of the shielded-pool epic (#59). Establishes the MiMC hash as a
