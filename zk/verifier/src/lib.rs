@@ -1,6 +1,12 @@
 #![no_std]
-use soroban_sdk::crypto::bls12_381::{Fr, G1Affine, G2Affine};
 use soroban_sdk::{contract, contractimpl, BytesN, Env, String, Vec};
+
+mod groth16;
+mod mimc;
+mod mimc_constants;
+mod pool;
+#[cfg(test)]
+mod withdraw_fixture;
 
 #[contract]
 pub struct Groth16Verifier;
@@ -52,33 +58,10 @@ impl Groth16Verifier {
         c: BytesN<96>,
         pub_signals: Vec<BytesN<32>>,
     ) -> bool {
-        let bls = env.crypto().bls12_381();
-        let n = pub_signals.len();
-
-        // vk_x = IC[0] + sum_i pub_i * IC[i+1]
-        let mut ic_points: Vec<G1Affine> = Vec::new(&env);
-        let mut scalars: Vec<Fr> = Vec::new(&env);
-        for i in 0..n {
-            ic_points.push_back(G1Affine::from_bytes(vk_ic.get(i + 1).unwrap()));
-            scalars.push_back(Fr::from_bytes(pub_signals.get(i).unwrap()));
-        }
-        let acc = bls.g1_msm(ic_points, scalars);
-        let ic0 = G1Affine::from_bytes(vk_ic.get(0).unwrap());
-        let vk_x = bls.g1_add(&ic0, &acc);
-
-        // Multi-pairing check.
-        let mut vp1: Vec<G1Affine> = Vec::new(&env);
-        let mut vp2: Vec<G2Affine> = Vec::new(&env);
-        vp1.push_back(G1Affine::from_bytes(neg_a));
-        vp2.push_back(G2Affine::from_bytes(b));
-        vp1.push_back(G1Affine::from_bytes(vk_alpha));
-        vp2.push_back(G2Affine::from_bytes(vk_beta));
-        vp1.push_back(vk_x);
-        vp2.push_back(G2Affine::from_bytes(vk_gamma));
-        vp1.push_back(G1Affine::from_bytes(c));
-        vp2.push_back(G2Affine::from_bytes(vk_delta));
-
-        bls.pairing_check(vp1, vp2)
+        // Delegates to the shared verifier (crate::groth16), reused by ShieldedPool.
+        crate::groth16::verify(
+            &env, &vk_alpha, &vk_beta, &vk_gamma, &vk_delta, &vk_ic, &neg_a, &b, &c, &pub_signals,
+        )
     }
 }
 

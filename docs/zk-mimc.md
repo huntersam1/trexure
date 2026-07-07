@@ -48,6 +48,40 @@ reinterpreted as an internal node or a nullifier.
 
 Trusted setup is **demo-grade** (single contributor, fixed entropy) — not a ceremony. Rebuild everything with `zk/scripts/build-withdraw.sh`.
 
+## On-chain contract (P3, #62)
+
+`zk/verifier/src/pool.rs` — the `ShieldedPool` Soroban contract: incremental
+Merkle tree + spent-nullifier set, `deposit` (SAC transfer in + insert leaf),
+`withdraw` (reuse `groth16::verify` + nullifier + SAC transfer out). MiMC over
+`Fr` is `zk/verifier/src/mimc.rs` (constants auto-generated into
+`mimc_constants.rs` from the golden file). The Rust MiMC **reproduces the P1
+golden vectors** (`cargo test mimc_reproduces_p1_golden_vectors`), and the
+contract **verifies the real P2 proof in-contract** (deposit the demo
+commitment → on-chain tree root equals the proof's public root → withdraw pays
+out; double-spend + unknown-root rejected).
+
+### ⚠️ On-chain cost finding (measured)
+
+**220-round MiMC over `Fr` is not budget-viable on Soroban for tree operations.**
+`deposit` (12 hashes) and even `initialize` (11 hashes to precompute zero
+subtrees) **exceed Soroban's default per-transaction budget** (measured:
+`budget().reset_default()` fails at `initialize`). Optimizations applied — build
+the 220 constants once per tx, precompute zero-subtree hashes at init so deposit
+does `depth` hashes not `2·depth` — are not enough. `withdraw` (a single pairing
+check, no MiMC) is fine.
+
+**Implication:** the Approach-A on-chain-tree pool is *functionally correct and
+fully tested*, but deposit/init would not execute on testnet/mainnet as-is.
+Fallbacks to make it deployable, in order of preference:
+1. **Approach C (documented in #59):** maintain the Merkle tree off-chain; the
+   operator posts roots to the contract. No on-chain MiMC. Trades trustlessness
+   for viability.
+2. **Fewer MiMC rounds** (e.g. ~110, the security floor for x^5 over this field)
+   — halves cost, but requires regenerating P1 + the circuit.
+3. **Shallower tree** — deposit cost ∝ depth; smaller anonymity set.
+
+Tests use `budget().reset_unlimited()` to validate logic (not gas).
+
 ## Transcribing to circom / Rust (P2 / P3)
 
 1. Use MiMCSponge with `nRounds = 220`, S-box `x^5`.
