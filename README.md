@@ -233,6 +233,12 @@ sequenceDiagram
 
 **Roadmap for the on-chain layer:** the natural next step is to move real private *value*, not just anchor a commitment. As of June 2026 Stellar shipped **Confidential Tokens** (private SEP-41 balances/transfer amounts, via an OpenZeppelin contract suite + Nethermind verifier) and **Privacy Pools** — both aimed squarely at payroll/treasury. Migrating `shielded_transfer` onto those primitives replaces the bespoke recorder with real, compliant private value transfer while keeping the same selective-disclosure model. See [issue #52](https://github.com/webnxt-2030/trexure/issues/52) for the full integration plan.
 
+> **Note — is the [#59](https://github.com/webnxt-2030/trexure/issues/59) shielded pool reinventing Confidential Tokens?** No — they protect **different axes of privacy** and are complementary:
+> - **Confidential Tokens** hide the **amount** (sender/recipient addresses stay visible).
+> - The **#59 shielded pool** hides the **sender↔recipient link** / unlinkability (amounts stay visible at the pool edges).
+>
+> Neither alone fully hides on-chain payroll — which needs to hide *who* **and** *how much*. The strongest direction is therefore a **privacy pool built *over* a confidential token**, reusing the audited OpenZeppelin / Nethermind verifier rather than hand-rolling MiMC + Groth16 from scratch (#59's own top risks are exactly that bespoke crypto). This trade-off only affects **Rail A** (on-chain transfer); **Rail B** (fiat payout) already hides everything off-chain via the encrypted payload + view key. The build-vs-reuse decision is tracked in [#52](https://github.com/webnxt-2030/trexure/issues/52) (integration plan) and [#59](https://github.com/webnxt-2030/trexure/issues/59) (the pool epic).
+
 ### Live on Stellar testnet
 
 The verifier / `shielded_transfer` contract is deployed and in active use on Stellar
