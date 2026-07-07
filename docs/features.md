@@ -5,6 +5,34 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P4: off-chain TS library (`lib/pool/**`) — #63
+
+The TypeScript layer that turns the circuit (P2) + contract (P3, deployable at
+depth 4 per P3.5) into usable operations: mint notes, mirror the tree, generate
+withdrawal proofs, and submit deposits/withdrawals. Built TDD (32 tests).
+
+- `note.ts` — `generateNote(amount)` mints `{ secret, nullifier }`, derives
+  `commitment` + `nullifierHash` (via P1 `mimc.ts`), and serializes a portable
+  `trexure-note-v1-<hex>` bearer claim string; `parseNote` round-trips it.
+- `tree.ts` — `PoolMerkleTree` (depth 4), an off-chain incremental Merkle mirror
+  that **reproduces the on-chain root** (locked by a test asserting the demo
+  deposit's root == the committed proof's public root) and builds
+  `pathElements`/`pathIndices` for any leaf.
+- `proof-encoding.ts` — snarkjs proof → Soroban `withdraw` args (big-endian,
+  Fp2 c1-first, A pre-negated); **cross-checked byte-for-byte against the Rust
+  contract fixture** (`withdraw_fixture.rs`).
+- `withdraw.ts` (server-only) — `buildWithdrawProof` generates the Groth16 proof
+  from a note + tree (verified off-chain against `withdraw_vk.json`);
+  `submitWithdraw` sends `pool.withdraw`.
+- `deposit.ts` (server-only) — `prepareDeposit` mints the note + commitment;
+  `submitDeposit` sends the SAC transfer + `pool.deposit`.
+- Widened `types/snarkjs.d.ts` so `fullProve` accepts real array circuit signals.
+
+Live on-chain submit (deposit/withdraw) is exercised by **P5** (testnet E2E) — no
+Soroban CLI in this env — so P4 validates everything up to `sendTransaction`:
+note round-trip, tree↔on-chain-root agreement, and real proof gen→encode→verify.
+**Unblocks P5 (#64) / P6 (#65).**
+
 ## Shielded pool P3.5: on-chain pool made network-deployable (depth-4 tree) — #74
 
 Resolves the P3 budget blocker: 220-round MiMC over `Fr` costs ~19M CPU per tree
