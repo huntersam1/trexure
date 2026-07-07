@@ -63,32 +63,38 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 
 ## Architecture
 
-One Railway project runs two Node services — a Next.js **web** app and a standalone BullMQ **worker** — against a shared PostgreSQL 17 and Redis. The web app submits shielded transfers to Stellar (Soroban) testnet and verifies proofs on-chain; the worker watches the chain and reconciles the on-chain leg against the fiat webhook by `intentId`.
+One Railway project runs two Node services — a Next.js **web** app and a standalone BullMQ **worker** — over a shared PostgreSQL 17 and Redis. A single privacy-shielded payment can settle down **either of two payout rails**:
+
+- **Rail B — private fiat payout (live).** The on-chain leg is a ZK commitment; a real off-ramp **anchor / VASP** (in the PH: **PDAX**; Mock Anchor in the demo) pays the recipient's **bank account**, and the worker reconciles the on-chain leg against the off-ramp payout by `intentId` → `SETTLED` + receipt.
+- **Rail A — private on-chain transfer (in build, [#59](https://github.com/webnxt-2030/trexure/issues/59)).** Real XLM moves through a Soroban `ShieldedPool` to **any recipient wallet**, with the sender↔recipient link hidden in zero-knowledge. There's no fiat leg to match here — the withdrawal tx *is* the settlement.
+
+See [`docs/payment-rails.md`](docs/payment-rails.md) for how reconciliation differs across the two rails and the honest privacy/KYC model of each.
 
 ```mermaid
 flowchart TB
-    subgraph Client
-        B[Browser · Next.js RSC UI]
-    end
+    B[Browser · Next.js RSC UI]
     subgraph Web["web service (Next.js 16)"]
         MW[middleware.ts<br/>session gate + CSP/HSTS]
         API["Route handlers<br/>/api/**"]
-        LIB[lib/* services<br/>zk · payments · reconcile · anchor · crypto · pdf]
+        LIB[lib/* services<br/>zk · payments · reconcile · anchor · pool · crypto · pdf]
     end
     subgraph Worker["worker service (BullMQ)"]
         WON[watch-onchain job]
         REC[reconcile job]
     end
-    subgraph Data
+    subgraph Data["shared data"]
         PG[(PostgreSQL 17<br/>Prisma 7)]
         RED[(Redis<br/>queues · rate limit · idempotency)]
         S3[(S3-compatible<br/>MinIO dev / Railway Volume prod)]
     end
-    subgraph Stellar["Stellar / Soroban testnet"]
+    subgraph Chain["Stellar / Soroban testnet"]
         RPC[Soroban RPC + Horizon]
         VC["groth16-verifier + shielded_transfer<br/>(Rust/Soroban contract)"]
+        POOL["ShieldedPool contract<br/>#59 · in build"]
     end
-    ANCHOR["Fiat anchor<br/>Mock Anchor (drop-in for a real SEP anchor)"]
+    ANCHOR["Off-ramp anchor / VASP<br/>Mock Anchor today · PDAX (PH) planned"]
+    WALLET[(Recipient XLM wallet)]
+    BANK[(Recipient bank account)]
 
     B -->|HTTPS + session cookie| MW --> API --> LIB
     LIB -->|Prisma| PG
@@ -98,14 +104,25 @@ flowchart TB
     API -->|enqueue watch-onchain / reconcile| RED
     WON -->|poll getEvents| RPC
     WON -->|write OnchainLeg| PG
-    REC -->|match legs → SETTLED + Receipt| PG
+
+    %% Rail B — private fiat payout (LIVE)
+    API -->|trigger payout| ANCHOR
     ANCHOR -->|HMAC-signed webhook| API
-    API -->|POST /api/mock-anchor/payout| ANCHOR
+    ANCHOR ==>|off-ramp payout| BANK
+    REC ==>|match on-chain leg + fiat leg by intentId<br/>→ SETTLED + Receipt| PG
+
+    %% Rail A — private on-chain transfer (#59, IN BUILD)
+    LIB -.->|deposit / withdraw + ZK proof| POOL
+    POOL -.->|pays real XLM · sender↔recipient unlinkable| WALLET
 ```
 
-<details><summary>Rendered architecture diagram (image)</summary>
+**Legend:** thick edges (`==>`) = **Rail B — private fiat payout** (live; Mock Anchor today, PDAX planned). Dashed edges (`-.->`) = **Rail A — private on-chain transfer** (in build, [#59](https://github.com/webnxt-2030/trexure/issues/59)).
+
+<details><summary>Rendered architecture diagram (image — Rail B / fiat-payout view)</summary>
 
 ![Trexure architecture — one Railway project runs the web and worker services against shared Postgres and Redis, submitting shielded transfers to Stellar testnet and reconciling the on-chain and fiat legs by intentId into a single receipt.](docs/architecture-diagram.png)
+
+_Note: this rendered image predates the two-rail model and shows Rail B (fiat payout) only; the Mermaid diagram above is the current source of truth._
 
 </details>
 
