@@ -12,7 +12,7 @@ import { hash2, commitmentHash, nullifierHash, toField } from "../../lib/pool/mi
 import { recipientToField } from "../../lib/pool/address.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const LEVELS = 12;
+const LEVELS = 4;
 const wasm = resolve(here, "../artifacts/withdraw.wasm");
 const zkey = resolve(here, "../artifacts/withdraw_final.zkey");
 const vk = JSON.parse(readFileSync(resolve(here, "../artifacts/withdraw_vk.json"), "utf8"));

@@ -96,7 +96,11 @@ template Withdraw(levels) {
     recipientSquare <== recipient * recipient;
 }
 
-// Depth 12 → 4096-leaf anonymity set. Kept at 12 so the Groth16 trusted setup
-// fits a 2^16 BLS12-381 powers-of-tau (2*constraints <= 2^16) — tractable to
-// generate in pure-JS snarkjs. Bump with a larger ptau for a bigger set (P3/P5).
-component main {public [root, nullifierHash, recipient, amount]} = Withdraw(12);
+// Depth 4 → 16-leaf anonymity set. Depth is bounded by the on-chain cost, NOT
+// the trusted setup: each tree level costs ~19M CPU on Soroban (220-round MiMC
+// over Fr), and `deposit`/`initialize` do `depth` hashes — depth 4 = ~77M, which
+// fits Soroban's 100M per-tx budget with headroom (depth 5 ≈ 96M is too tight,
+// depth 6 ≈ 115M exceeds it). This depth MUST match the pool contract's tree
+// (zk/verifier/src/pool.rs) or the proof won't verify against the on-chain root.
+// See docs/zk-mimc.md for the measured depth→CPU table.
+component main {public [root, nullifierHash, recipient, amount]} = Withdraw(4);

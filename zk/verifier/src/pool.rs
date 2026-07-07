@@ -1,10 +1,11 @@
 //! ShieldedPool — a Tornado-style privacy pool on Soroban (P3, #62).
 //!
-//! ⚠️ SPIKE, not the production pool. Feature-gated (`pool`) and kept out of the
-//! default verifier build. On-chain 220-round MiMC was MEASURED to exceed
-//! Soroban's per-tx budget for tree ops (deposit/init), so this is a correct,
-//! fully-tested reference — the deployable pool should use Approach C (off-chain
-//! tree, operator-posted roots) or fewer MiMC rounds. See docs/zk-mimc.md.
+//! Feature-gated (`pool`) and kept out of the default verifier build. On-chain
+//! 220-round MiMC over `Fr` is expensive (~19M CPU per tree level), so the tree
+//! is kept SHALLOW: at **depth 4**, `initialize`/`deposit` each do 4 hashes ≈
+//! 77M CPU and fit Soroban's 100M per-tx budget with headroom (measured; depth 5
+//! ≈ 96M is too tight, depth 6 ≈ 115M exceeds it). This gives a 16-leaf
+//! anonymity set. The depth MUST match the P2 withdraw circuit. See docs/zk-mimc.md.
 //!
 //! Custodies a token (native XLM via its SAC) and keeps an on-chain incremental
 //! Merkle tree of deposit commitments + a spent-nullifier set. Deposits insert a
@@ -276,16 +277,41 @@ mod test {
         }
     }
 
+    // Depth-4 tree: `initialize` and `deposit` each fit Soroban's *default*
+    // per-tx budget (measured ~77M of 100M CPU). This test asserts that directly
+    // by resetting to the default limit before each call — the real deployability
+    // guarantee. See docs/zk-mimc.md for the full depth→CPU table.
+    #[test]
+    fn initialize_and_deposit_fit_default_budget_at_depth_4() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let sac = env.register_stellar_asset_contract_v2(admin);
+        let token_addr = sac.address();
+        let asset = token::StellarAssetClient::new(&env, &token_addr);
+        let depositor = Address::generate(&env);
+        asset.mint(&depositor, &1_000i128);
+        let pool_id = env.register(ShieldedPool, ());
+        let pool = ShieldedPoolClient::new(&env, &pool_id);
+
+        // Each is its own transaction on-network, so each gets a fresh 100M budget.
+        let mut b = env.cost_estimate().budget();
+        b.reset_default(); // 100M CPU / 40MB mem — the network per-tx default
+        pool.initialize(&token_addr, &4u32, &vk(&env)); // panics if it exceeds
+        assert!(b.cpu_instruction_cost() < 100_000_000, "initialize fits default budget");
+
+        b.reset_default();
+        pool.deposit(&depositor, &100i128, &BytesN::from_array(&env, &[7u8; 32]));
+        assert!(b.cpu_instruction_cost() < 100_000_000, "deposit fits default budget");
+    }
+
     #[test]
     fn deposit_root_matches_proof_and_withdraw_pays_out_then_blocks_double_spend() {
         let env = Env::default();
         env.mock_all_auths();
-        // NOTE: 220-round MiMC over Fr is expensive on-chain — deposit/init
-        // (tree hashing) EXCEED Soroban's default per-tx budget (measured:
-        // reset_default() fails at initialize). These tests validate logic, not
-        // gas. See docs/zk-mimc.md for the on-chain-cost finding + fallbacks
-        // (Approach C off-chain tree, fewer MiMC rounds, or a shallower tree).
-        // Withdraw itself (pairing verify only, no MiMC) fits the budget.
+        // This test chains initialize + deposit + withdraw + double-spend in one
+        // env, so it runs under an unlimited budget (each op individually fits the
+        // default budget — see initialize_and_deposit_fit_default_budget_at_depth_4).
         env.cost_estimate().budget().reset_unlimited();
 
         // Native-like SAC token.
@@ -299,10 +325,10 @@ mod test {
         let depositor = Address::generate(&env);
         asset.mint(&depositor, &amount);
 
-        // Deploy + init the pool (depth 12 = the P2 circuit).
+        // Deploy + init the pool (depth 4 = the P2 circuit).
         let pool_id = env.register(ShieldedPool, ());
         let pool = ShieldedPoolClient::new(&env, &pool_id);
-        pool.initialize(&token_addr, &12u32, &vk(&env));
+        pool.initialize(&token_addr, &4u32, &vk(&env));
 
         // Deposit the demo note's commitment. The on-chain tree must reproduce the
         // exact root the P2 proof was generated against (P2<->P3 MiMC/tree agreement).
@@ -350,18 +376,14 @@ mod test {
     fn withdraw_unknown_root_is_rejected() {
         let env = Env::default();
         env.mock_all_auths();
-        // NOTE: 220-round MiMC over Fr is expensive on-chain — deposit/init
-        // (tree hashing) EXCEED Soroban's default per-tx budget (measured:
-        // reset_default() fails at initialize). These tests validate logic, not
-        // gas. See docs/zk-mimc.md for the on-chain-cost finding + fallbacks
-        // (Approach C off-chain tree, fewer MiMC rounds, or a shallower tree).
-        // Withdraw itself (pairing verify only, no MiMC) fits the budget.
+        // Withdraw is pairing-verify only (no MiMC) and fits the default budget
+        // comfortably; init at depth 4 also fits (see the budget-fit test above).
         env.cost_estimate().budget().reset_unlimited();
         let admin = Address::generate(&env);
         let sac = env.register_stellar_asset_contract_v2(admin);
         let pool_id = env.register(ShieldedPool, ());
         let pool = ShieldedPoolClient::new(&env, &pool_id);
-        pool.initialize(&sac.address(), &12u32, &vk(&env));
+        pool.initialize(&sac.address(), &4u32, &vk(&env));
 
         let recipient = Address::generate(&env);
         let bogus_root = BytesN::from_array(&env, &[9u8; 32]);

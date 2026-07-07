@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."                 # -> zk/
 ROOT="$(cd .. && pwd)"
 CIRCOM="${CIRCOM:-$ROOT/.localbin/circom}"
 SNARKJS="$ROOT/node_modules/.bin/snarkjs"
-POW=16                                   # 2^16 domain: fits depth-12 (2*constraints < 2^16)
+POW=15                                   # 2^15 domain: fits depth-4 (~13.2k constraints, 2*constraints < 2^15)
 
 mkdir -p build artifacts
 echo "== 1. regenerate circom constants from P1 golden =="

@@ -5,6 +5,27 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P3.5: on-chain pool made network-deployable (depth-4 tree) — #74
+
+Resolves the P3 budget blocker: 220-round MiMC over `Fr` costs ~19M CPU per tree
+level, so `deposit`/`initialize` (which do `depth` hashes) blew Soroban's 100M
+per-tx budget at depth 12. **Measured** the cost by depth and dropped the tree to
+**depth 4** (16-leaf anonymity set), where each op ≈ 77M CPU — inside the default
+budget with ~22% headroom. Keeps Approach A fully **trustless** (no operator roots).
+
+- `zk/circuits/withdraw.circom` → `Withdraw(4)`; trusted setup regenerated at
+  **2^15** ptau (~13.2k constraints). New committed `withdraw.wasm` /
+  `withdraw_final.zkey` / `withdraw_vk.json` + proof/public fixtures.
+- `zk/verifier/src/withdraw_fixture.rs` regenerated from the real depth-4 proof.
+- `zk/verifier/src/pool.rs` — inits at depth 4; new test
+  `initialize_and_deposit_fit_default_budget_at_depth_4` asserts each call
+  succeeds under `budget().reset_default()` (the real deployability guarantee).
+- `docs/zk-mimc.md` — the measured depth→CPU table + resolution supersede the
+  old "not deployable" finding. **Unblocks P4 (#63) / P5 (#64) / P6 (#65).**
+
+Still a feature-gated spike (demo-grade trusted setup, unaudited). A larger set
+later is a one-line depth bump paired with fewer MiMC rounds or a cheaper hash.
+
 ## Shielded pool P3: ShieldedPool Soroban contract — #62
 
 Third slice of the shielded-pool epic (#59): the on-chain contract that
@@ -31,6 +52,8 @@ for tree ops (deposit/init) — the Approach-A on-chain tree is correct + tested
 but not network-deployable as-is. Withdraw (pairing only) is fine. Fallbacks
 (off-chain tree / fewer rounds / shallower tree) in `docs/zk-mimc.md`. Testnet
 deploy also pending a Soroban CLI in the agent env. DEMO-GRADE, not audited.
+*(→ Superseded by P3.5 (#74): the shallower-tree fallback was taken — depth 4 now
+fits the budget and IS network-deployable.)*
 
 **Scoped as a spike (review of PR #73):** the pool is **feature-gated** (`pool`,
 default off) so the production Groth16Verifier wasm is unchanged; build/test with
@@ -46,7 +69,8 @@ the Merkle tree + a fresh nullifier, without revealing which deposit.
 - `zk/circuits/withdraw.circom` — Tornado-style: `commitmentHash(secret,
   nullifier, amount)` leaf, `nullifierHash` check, MiMC Merkle membership to a
   public `root`; public signals `[root, nullifierHash, recipient, amount]`.
-  **Depth 12** (4096-leaf set) so the setup fits a 2^16 BLS12-381 ptau.
+  **Depth 4** (16-leaf set) — bounded by on-chain MiMC cost (P3.5, #74), not the
+  trusted setup; fits a small 2^15 BLS12-381 ptau.
 - `zk/circuits/mimcsponge.circom` + `mimc_constants.circom` (auto-generated from
   P1's `mimc-golden.json`) — MiMCSponge matching `lib/pool/mimc.ts` exactly; the
   in-circuit hashes reproduce every P1 golden vector
