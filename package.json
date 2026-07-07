@@ -24,6 +24,7 @@
     "release": "bash scripts/release.sh",
     "ci": "pnpm typecheck && pnpm lint && pnpm test && pnpm audit --audit-level=high",
     "zk:demo": "node zk/scripts/zk-demo.mjs",
+    "pool:demo": "tsx --conditions=react-server zk/scripts/pool-demo.mjs",
     "demo:record": "node scripts/record-demo.mjs"
   },
   "dependencies": {

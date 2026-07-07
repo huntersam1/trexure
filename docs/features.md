@@ -5,6 +5,37 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P5: testnet E2E deposit→withdraw demo — #64
+
+Proves the whole pool works **on Soroban testnet with real XLM**, end to end, and
+demonstrates the privacy property. The `ShieldedPool` contract (P3, `--features
+pool`) was deployed + initialized (depth 4, native XLM SAC) — its first live run,
+confirming the depth-4 tree fits Soroban's **real** per-tx budget, not just the SDK
+harness.
+
+- `zk/scripts/pool-demo.mjs` + `pnpm pool:demo` — funds a fresh depositor A and
+  recipient B (Friendbot), deposits N XLM from A via `lib/pool/deposit.ts`
+  (prints the note), rebuilds the tree from on-chain `deposit` events and asserts
+  **off-chain root == on-chain `get_root`**, withdraws to B via
+  `lib/pool/withdraw.ts` using only the note, then asserts: B received exactly N,
+  a replay is rejected (nullifier spent), and the deposit/withdraw are unlinkable
+  (A signs the deposit; the server relays the withdraw to B; the withdraw envelope
+  never references the deposit or A). Runs headless (`process.exit`), prints
+  stellar.expert links.
+- `zk/scripts/pool-init.mjs` — one-time `initialize(token, depth, vk)` (the vk is
+  a Soroban struct, built by hand in the locked BE / Fp2-c1-first encoding).
+- `zk/pool-deploy.json` — deployed `POOL_CONTRACT_ID`, native SAC, depth, deploy
+  ledger + tx hashes (the demo reads it).
+- `lib/pool/deposit.ts` — `submitDeposit` gained an optional `fromSecret` so the
+  demo can deposit from a *fresh* account (faithful unlinkability).
+
+**Verified live on testnet** (10 XLM, depth-4 tree, leaf index 2 of 3):
+deposit [`ea37b3b5…`](https://stellar.expert/explorer/testnet/tx/ea37b3b5eab5676cd80842b90e59664b5f56bf1e2207a4cb3e4b6425d3d22024)
+→ withdraw [`c7d13eaf…`](https://stellar.expert/explorer/testnet/tx/c7d13eaf3b9a8d7db4ef373a62e2c44ebeb9e3eea488b29925b94ed293f54444).
+Pool `CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4`. Demo-grade
+(unaudited, demo trusted setup). Event-sync is bounded by RPC retention (a
+production mirror would persist to a DB). **Unblocks P6 (#65, app rail UI).**
+
 ## Shielded pool P4: off-chain TS library (`lib/pool/**`) — #63
 
 The TypeScript layer that turns the circuit (P2) + contract (P3, deployable at

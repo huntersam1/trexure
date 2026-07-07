@@ -1,0 +1,12 @@
+{
+  "network": "testnet",
+  "poolContractId": "CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4",
+  "tokenSac": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  "tokenAsset": "native",
+  "depth": 4,
+  "deployLedger": 3483086,
+  "deployTx": "3dc8bf3e99e297f887901bbd212f76719f661404a55f0fca533d98cd32f918f2",
+  "initTx": "2d203656d888b4df84a37e6f45dbe6cb75b58649a2f592f37730992ffad44413",
+  "wasmHash": "e60b7cd300b451c0c24db14e2dfaf577aceffd4c94ad3571bae9a4cc6880eea9",
+  "note": "ShieldedPool (P3, --features pool) deployed + initialized for the P5 demo. depth-4 tree (#74). Demo-grade trusted setup, testnet only."
+}

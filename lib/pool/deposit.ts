@@ -49,6 +49,8 @@ export function prepareDeposit(amount: bigint): PreparedDeposit {
 export async function submitDeposit(args: {
   amount: bigint;
   poolContractId: string;
+  /** Depositor secret (signs + funds the deposit). Defaults to the server key. */
+  fromSecret?: string;
 }): Promise<{ noteString: string; commitment: Buffer; txHash: string; ledger: number }> {
   const { amount, poolContractId } = args;
   const { noteString, commitment } = prepareDeposit(amount);
@@ -56,7 +58,7 @@ export async function submitDeposit(args: {
   const server = new rpc.Server(env.STELLAR_RPC_URL, {
     allowHttp: env.STELLAR_RPC_URL.startsWith("http://"),
   });
-  const keypair = Keypair.fromSecret(env.STELLAR_SOURCE_SECRET);
+  const keypair = Keypair.fromSecret(args.fromSecret ?? env.STELLAR_SOURCE_SECRET);
   const from = keypair.publicKey();
   const account = await server.getAccount(from);
 
