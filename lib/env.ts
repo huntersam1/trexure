@@ -61,6 +61,13 @@ const EnvSchema = z.object({
   // loop runs end-to-end on testnet (#40). Set "false" as a deploy-time kill
   // switch if the on-chain leg regresses.
   ENABLE_NEW_PAYMENTS: boolFromString.default(true),
+  // Gate for the "Private on-chain transfer" pool rail (#65). Defaults OFF —
+  // it's a separate, self-contained rail (real XLM deposit→withdraw via the
+  // ShieldedPool, #59). When off, /pool routes 404 and nothing else changes.
+  ENABLE_POOL_RAIL: boolFromString.default(false),
+  // Deployed ShieldedPool contract (P5, #64). Defaults to the demo deployment
+  // recorded in zk/pool-deploy.json; override per environment.
+  POOL_CONTRACT_ID: z.string().min(1).default("CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4"),
 
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),

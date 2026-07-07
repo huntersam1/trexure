@@ -5,6 +5,32 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P6: app rail UI (Private on-chain transfer) — #65
+
+Surfaces the pool as a **new "Private on-chain transfer" rail** in the app,
+feature-flagged behind `ENABLE_POOL_RAIL` (default **off**) — the existing
+fiat/mock-anchor + reconcile flow is untouched. Final phase of the epic (#59).
+
+- **Flag + gating**: `ENABLE_POOL_RAIL` (default off) + `POOL_CONTRACT_ID`
+  (defaults to `zk/pool-deploy.json`) in `lib/env.ts`. When off, `/pool` and
+  `/api/pool/*` **404** and the sidebar link is hidden.
+- **API** (`app/api/pool/**`, session + CSRF like the payment routes):
+  `deposit` (shield XLM → returns the one-time note), `withdraw` (claim a note to
+  an address), `demo` (one-click deposit→withdraw to a fresh address). Thin routes
+  → `lib/pool/service.ts` (+ `sync.ts` rebuilds the tree from on-chain events,
+  `demo.ts` orchestrates the one-click flow).
+- **UI** (`app/(app)/pool/`): a gated page with three cards — shield (reveals the
+  note once with a save-it warning), claim (note + recipient → withdraw tx), and a
+  one-click demo that runs the full flow on-screen and shows both txs + the
+  unlinkability note. Sidebar gains a gated "Private Transfer" link.
+- **Tests**: deposit + withdraw route tests (flag-off 404, auth/CSRF, happy path,
+  invalid note/recipient) + Sidebar link tests. Server-signed for the demo
+  (real-wallet signing out of scope; noted in the UI).
+
+Built TDD (46 tests across the rail + lib). The server path (`service`/`sync`/
+`demo`) was **verified live on testnet** against the deployed pool
+`CB5FU3DB…`. Demo-grade (16-leaf set, demo trusted setup). Completes #59.
+
 ## Shielded pool P5: testnet E2E deposit→withdraw demo — #64
 
 Proves the whole pool works **on Soroban testnet with real XLM**, end to end, and

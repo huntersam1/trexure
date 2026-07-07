@@ -13,7 +13,12 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
 
   return (
     <div className="h-screen overflow-hidden flex bg-background text-on-surface">
-      <Sidebar username={user.username} role={user.role} newPaymentsEnabled={env.ENABLE_NEW_PAYMENTS} />
+      <Sidebar
+        username={user.username}
+        role={user.role}
+        newPaymentsEnabled={env.ENABLE_NEW_PAYMENTS}
+        poolRailEnabled={env.ENABLE_POOL_RAIL}
+      />
       <main className="flex-1 overflow-y-auto trx-scroll">
         <div className="mx-auto w-full max-w-[1280px] p-margin-desktop">{children}</div>
       </main>
