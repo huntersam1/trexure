@@ -5,6 +5,28 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P1: MiMC golden vectors (circom / Rust / TS) — #60
+
+First slice of the shielded-pool epic (#59). Establishes the MiMC hash as a
+single cross-language source of truth **before** the circuit (P2) and Soroban
+contract (P3) consume it — cross-language hash agreement is the whole system's
+#1 risk.
+
+- `lib/pool/mimc.ts` — reference MiMC over BLS12-381 `Fr`: circomlib MiMCSponge
+  (Feistel, S-box `x^5`, 220 rounds, SHA256-seeded constants). Exposes
+  `hash2` (Merkle node), `commitmentHash` (deposit leaf), `nullifierHash`.
+  Dependency-free (only `node:crypto`); relative `FR` import so `tsx` scripts
+  (P4/P5) can use it.
+- `zk/artifacts/mimc-golden.json` — the spec: params + all 220 round constants +
+  golden input→output vectors; regenerate via `zk/scripts/gen-mimc-golden.mjs`.
+- `lib/pool/mimc.test.ts` — locks the reference to the golden file (10 tests:
+  vector reproduction, exponent-is-a-permutation, canonical outputs, order
+  sensitivity, domain separation).
+- `docs/zk-mimc.md` — parameters + how P2/P3 transcribe the constants.
+
+Exponent `5` chosen because `gcd(5, r-1) = 1` over BLS12-381 `Fr` (3 and 11 are
+invalid). No runtime/product surface changed.
+
 ## Real on-chain leg for the sample payment (`SEED_ONCHAIN`) — #45
 
 The sample payment behind Demo Replay (and every self-serve signup's demo
