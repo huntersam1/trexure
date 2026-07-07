@@ -36,6 +36,18 @@ Golden vectors that all three must reproduce: **`zk/artifacts/mimc-golden.json`*
 Different absorb counts make each function independent, so a leaf can't be
 reinterpreted as an internal node or a nullifier.
 
+## Withdraw circuit (P2, #61)
+
+`zk/circuits/withdraw.circom` — the Tornado-style membership proof:
+- `commitment = commitmentHash(secret, nullifier, amount)`, `nullifierHash === nullifierHash(nullifier)`, Merkle-fold `commitment` to `root` with `hash2`.
+- Public signals (order fixed for the P3 verifier): **`[root, nullifierHash, recipient, amount]`**.
+- `recipient` is a Stellar ed25519 key reduced mod `r` (`lib/pool/address.ts` `recipientToField`); bound with a dummy quadratic so a relayer can't swap the payee.
+- **Depth 12** (4096-leaf anonymity set) — chosen so the Groth16 trusted setup fits a **2^16** BLS12-381 powers-of-tau (`2*constraints ≤ 2^16`), tractable in pure-JS snarkjs. Bump with a bigger ptau for a larger set.
+
+`zk/circuits/mimcsponge.circom` ports P1's MiMCSponge. **One deliberate deviation from stock circomlib:** the final Feistel round keeps `xL` and folds `t^5` into `xR` (no output swap) to match `lib/pool/mimc.ts` — P1 is the source of truth. `zk/scripts/mimc-circuit-crosscheck.mjs` proves the in-circuit hashes reproduce the golden vectors.
+
+Trusted setup is **demo-grade** (single contributor, fixed entropy) — not a ceremony. Rebuild everything with `zk/scripts/build-withdraw.sh`.
+
 ## Transcribing to circom / Rust (P2 / P3)
 
 1. Use MiMCSponge with `nRounds = 220`, S-box `x^5`.
