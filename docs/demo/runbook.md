@@ -2,6 +2,14 @@
 
 **Subject:** one payment's lifecycle — a **$2,500 USD → PHP private payroll payout to a Filipino contractor** — walked through four states. Mock Anchor stands in for Xendit; everything downstream of the webhook is real.
 
+> **Two rails now (#59).** This runbook is **Act 1 — the reconciliation rail**
+> (shielded payout ↔ fiat, the main story). There is now a second, live rail:
+> **Act 2 — Private on-chain transfer**, where **real XLM moves on Soroban testnet
+> with the sender↔recipient link hidden in zero knowledge**. Its ≈90s script is
+> [`pool-rail-demo.md`](pool-rail-demo.md); a one-command version is `pnpm pool:demo`.
+> Run Act 1 for the business story, Act 2 for the "real crypto, provably private"
+> finish.
+
 ## Pre-flight (before you present)
 - `docker compose up -d` (or confirm Railway is live and `GET /api/health` → `"ok"`).
 - Local: `pnpm db:seed` then `pnpm dev` + `pnpm worker:dev` (or `pnpm worker:prod`). The seed creates the sample shielded payment (on-chain leg present, NO fiat leg) so beats 1–2 are ready instantly.
@@ -25,6 +33,21 @@ Trigger `POST /api/mock-anchor/payout` with `fail:true` → the payment moves to
 
 ## Graceful degradation (if ZK integration is partial — SPEC §14.5)
 Keep beats 1–2 visually real from the stored `encryptedPayload` + a real on-chain proof-verification call (or the clearly-labeled Groth16-verifier fallback). Narrate the privacy layer as "shipped on testnet." Beats 3–4 (reconciliation + receipt) are ALWAYS fully live — they carry the demo regardless. NEVER present a mocked proof *verification* as real.
+
+## Act 2 — Private on-chain transfer (live shielded pool, #59)
+
+The second half of the pitch: **real value moves privately on-chain.** Full script
++ proof points in [`pool-rail-demo.md`](pool-rail-demo.md). The 30-second version:
+
+- **Enable it** (off by default): `ENABLE_POOL_RAIL=true pnpm dev` → a **Private Transfer** link appears (`/pool`). Needs a funded testnet `STELLAR_SOURCE_SECRET`.
+- **One-click:** on `/pool`, hit **Run demo** → the app deposits 10 XLM, then withdraws to a **brand-new** address using only a secret note. Both txs link to stellar.expert; the withdraw envelope shares **no account** with the deposit.
+- **Or zero-click:** `pnpm pool:demo` → prints both tx links + `✅ POOL DEMO PASSED — real XLM moved A→pool→B, unlinkable, double-spend blocked.`
+- **The claim:** a genuine deposit→withdraw on a **deployed Soroban contract** (`CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4`) with an on-chain Merkle tree + nullifier set and an **in-contract Groth16 proof** — sender↔recipient unlinkable, double-spend blocked.
+- **Be honest:** testnet, demo-grade trusted setup, 16-leaf anonymity set, server-signed. See the `pool-rail-demo.md` "what's real vs demo-grade" table.
+
+> This is the milestone older decks called "next." It's shipped: Trexure's
+> earlier on-chain leg only **verified** a proof (no tokens moved); this rail
+> **moves real value** privately, on a separate, self-contained pool.
 
 ## Beat → feature map (SPEC §14.6)
 | Beat | Backed by |
