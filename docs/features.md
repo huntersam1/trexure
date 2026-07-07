@@ -5,6 +5,38 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Shielded pool P3: ShieldedPool Soroban contract — #62
+
+Third slice of the shielded-pool epic (#59): the on-chain contract that
+custodies the token, maintains the Merkle tree + nullifier set, and gates
+payouts on the P2 ZK proof.
+
+- `zk/verifier/src/pool.rs` — `ShieldedPool`: `initialize` (token/depth/vk +
+  precomputed zero subtrees), `deposit` (SAC transfer in + Merkle insert),
+  `withdraw` (reuse `groth16::verify` + nullifier check + SAC transfer out),
+  `get_root`/`is_spent` views. Root-history ring; persistent nullifier set.
+- `zk/verifier/src/mimc.rs` (+ generated `mimc_constants.rs`) — MiMC over BLS12-381
+  `Fr` reproducing the P1 golden vectors (Rust cross-check test).
+- `zk/verifier/src/groth16.rs` — the pairing verify **extracted from `lib.rs`**
+  and reused by both contracts (no duplication).
+- Tests (`cargo test`, 4 pass): MiMC == golden; **the real P2 proof verifies
+  in-contract** (on-chain tree root == proof root); double-spend + unknown-root
+  rejected. Deployable wasm builds.
+- Generators: `zk/scripts/gen-mimc-rust-constants.mjs`,
+  `gen-withdraw-soroban-fixture.mjs` (Fp2 order **c1c0**, the working Soroban
+  BLS12-381 encoding).
+
+**⚠️ Finding:** 220-round MiMC over `Fr` **exceeds Soroban's default tx budget**
+for tree ops (deposit/init) — the Approach-A on-chain tree is correct + tested
+but not network-deployable as-is. Withdraw (pairing only) is fine. Fallbacks
+(off-chain tree / fewer rounds / shallower tree) in `docs/zk-mimc.md`. Testnet
+deploy also pending a Soroban CLI in the agent env. DEMO-GRADE, not audited.
+
+**Scoped as a spike (review of PR #73):** the pool is **feature-gated** (`pool`,
+default off) so the production Groth16Verifier wasm is unchanged; build/test with
+`--features pool`. The deployable pool decision (Approach C off-chain tree, or
+fewer MiMC rounds) gates P4/P5 — recorded in `docs/zk-mimc.md`.
+
 ## Shielded pool P2: withdraw circuit + trusted setup — #61
 
 Second slice of the shielded-pool epic (#59): the zero-knowledge withdraw

@@ -7,6 +7,13 @@ edition = "2021"
 crate-type = ["cdylib"]
 doctest = false
 
+[features]
+# The ShieldedPool (#62) is a SPIKE, kept OUT of the default build so the
+# production Groth16Verifier wasm doesn't drift. Build/test it explicitly:
+#   cargo test --features pool
+#   cargo build --release --target wasm32-unknown-unknown --features pool
+pool = []
+
 [dependencies]
 soroban-sdk = "22"
 
