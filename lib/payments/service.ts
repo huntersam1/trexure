@@ -3,6 +3,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { forTenant } from "../db";
 import { shield } from "../zk";
+import { buildShieldPayload } from "./shield-payload";
 import { buildAndSubmitPrivatePayment } from "../stellar/client";
 import { QUEUE, watchOnchainQueue, reconcileQueue } from "../queue";
 import { corridorFor, type CreatePaymentInput, type ListPaymentsQuery } from "../validation/payments";
@@ -68,17 +69,14 @@ export async function createPayment(
   const intentId = newIntentId();
   const { from, to } = corridorFor(input.sourceAsset, input.targetCurrency);
 
-  // 1. Shield the true payload (Phase 6 swaps the stub for real ZK behind this same call).
-  const shielded = await shield({
-    recipientRef: input.recipientRef,
-    amount: input.amount,
-    sourceAsset: input.sourceAsset,
-    targetCurrency: input.targetCurrency,
-    intentId,
-    // The optional user memo is private data: it lives only in the shielded
-    // payload. Soroban txs cannot carry classic memos (#30).
-    ...(input.memo ? { memo: input.memo } : {}),
-  });
+  // The tenant name is the "sender" in the shielded payload (matches the seed +
+  // signup fixtures). Tenant is not a tenant-scoped model, so this reads plainly.
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  const tenantName = tenant?.name ?? "";
+
+  // 1. Shield the true payload in the canonical display shape the Internal
+  //    Enclave reads (sender/recipient/asset/amount). See buildShieldPayload.
+  const shielded = await shield(buildShieldPayload(input, { tenantName, intentId }));
 
   // 2. Submit the Soroban tx. The intentId — the reconciliation join key — is the
   //    first contract-call argument; the watch-onchain worker matches on contract
