@@ -1,5 +1,11 @@
 //! ShieldedPool — a Tornado-style privacy pool on Soroban (P3, #62).
 //!
+//! ⚠️ SPIKE, not the production pool. Feature-gated (`pool`) and kept out of the
+//! default verifier build. On-chain 220-round MiMC was MEASURED to exceed
+//! Soroban's per-tx budget for tree ops (deposit/init), so this is a correct,
+//! fully-tested reference — the deployable pool should use Approach C (off-chain
+//! tree, operator-posted roots) or fewer MiMC rounds. See docs/zk-mimc.md.
+//!
 //! Custodies a token (native XLM via its SAC) and keeps an on-chain incremental
 //! Merkle tree of deposit commitments + a spent-nullifier set. Deposits insert a
 //! leaf; withdrawals prove membership + a fresh nullifier in zero knowledge

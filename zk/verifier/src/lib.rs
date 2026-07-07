@@ -2,10 +2,17 @@
 use soroban_sdk::{contract, contractimpl, BytesN, Env, String, Vec};
 
 mod groth16;
+// ShieldedPool spike (#62) — gated behind the `pool` feature so the production
+// Groth16Verifier wasm is unchanged. See Cargo.toml. On-chain MiMC was measured
+// to exceed Soroban's tx budget; this is a tested reference, not the shipping
+// pool (which should use Approach C — off-chain tree — or fewer MiMC rounds).
+#[cfg(feature = "pool")]
 mod mimc;
+#[cfg(feature = "pool")]
 mod mimc_constants;
+#[cfg(feature = "pool")]
 mod pool;
-#[cfg(test)]
+#[cfg(all(test, feature = "pool"))]
 mod withdraw_fixture;
 
 #[contract]

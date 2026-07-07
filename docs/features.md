@@ -32,6 +32,11 @@ but not network-deployable as-is. Withdraw (pairing only) is fine. Fallbacks
 (off-chain tree / fewer rounds / shallower tree) in `docs/zk-mimc.md`. Testnet
 deploy also pending a Soroban CLI in the agent env. DEMO-GRADE, not audited.
 
+**Scoped as a spike (review of PR #73):** the pool is **feature-gated** (`pool`,
+default off) so the production Groth16Verifier wasm is unchanged; build/test with
+`--features pool`. The deployable pool decision (Approach C off-chain tree, or
+fewer MiMC rounds) gates P4/P5 — recorded in `docs/zk-mimc.md`.
+
 ## Shielded pool P2: withdraw circuit + trusted setup — #61
 
 Second slice of the shielded-pool epic (#59): the zero-knowledge withdraw

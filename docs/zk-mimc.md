@@ -82,6 +82,24 @@ Fallbacks to make it deployable, in order of preference:
 
 Tests use `budget().reset_unlimited()` to validate logic (not gas).
 
+### Decision + status (P3 is a spike)
+
+Given the measurement, the P3 contract is a **feature-gated spike**, not the
+production pool. It's kept **out of the default verifier build** (`cargo build`
+→ Groth16Verifier only, wasm unchanged) so the deployed verifier doesn't drift;
+build/test the pool explicitly:
+
+```
+cargo test --features pool
+cargo build --release --target wasm32-unknown-unknown --features pool
+```
+
+**Open decision (gates P4 #63 / P5 #64):** the deployable value-moving pool
+should use **Approach C** (off-chain Merkle tree, operator-posted roots — no
+on-chain MiMC) or **fewer MiMC rounds**, not Approach A as-is. The A code stays
+in-tree as a tested reference. Full production would also split the pool into its
+own crate/build target (separate wasm from the verifier).
+
 ## Transcribing to circom / Rust (P2 / P3)
 
 1. Use MiMCSponge with `nRounds = 220`, S-box `x^5`.
