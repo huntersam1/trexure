@@ -102,6 +102,20 @@ export function Sidebar({
         )}
         {role === "ADMIN" && (
           <Link
+            href={"/reports" as Route}
+            aria-current={isActive("/reports") ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
+              isActive("/reports")
+                ? "bg-primary-container text-primary font-bold"
+                : "text-on-surface-variant hover:bg-surface-container-low"
+            }`}
+          >
+            <Icon name="summarize" className="text-[20px]" />
+            Reports
+          </Link>
+        )}
+        {role === "ADMIN" && (
+          <Link
             href={"/admin" as Route}
             aria-current={isActive("/admin") ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${

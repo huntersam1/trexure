@@ -5,6 +5,53 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reporting R1: Reconciliation / Settlement Statement (+ reporting foundation) — #100 (epic #98)
+
+The month-end finance export — every settled payment for a period plus the
+exceptions finance chases — and the **reusable reporting foundation** the rest of
+the corporate-reporting epic (#98, R2–R5) builds on.
+
+- **Foundation `lib/reports/**`** (report-agnostic, reused by R2–R5):
+  - `scope.ts` — period date-range parsing/scoping (`parseDateRange`,
+    `currentMonthRange`, inclusive end-of-day, reversed-range swap; keyed on
+    `Payment.createdAt`). Pure — testable without the DB.
+  - `csv.ts` — a generic RFC-4180 CSV serializer (`toCsv`, `csvRow`,
+    `joinCsvBlocks`; quotes/commas/newlines escaped, CRLF rows). Greenfield —
+    no CSV utility existed.
+  - `pdf.ts` — a generic report PDF renderer (`renderReportPdf`) modeled on
+    `lib/pdf/receipt.ts` (pdfkit core fonts, title + summary grid + paginated
+    tables), landscape A4.
+- **The Reconciliation Statement** (`lib/reports/reconciliation.ts`) —
+  `buildReconciliationStatement(tenantId, range)` reads through `forTenant()`
+  (tenant-isolated) and splits the period into **settled rows** (date,
+  counterparty, corridor, source/target amounts, FX, fees, slippage, on-chain
+  tx, bank ref, receipt id) and an **exceptions list** (in-flight
+  PENDING/ONCHAIN_CONFIRMED/RECONCILING, FAILED incl. bank-claim
+  **funds-in-custody**, and **on-chain-leg-without-fiat drift**), plus **totals**
+  (settled count + sums per source asset / target currency). Figures are pulled
+  from the stored `Receipt.json` when present (both the fiat `buildReceipt` and
+  the on-chain-only `pool-wallet` shapes) so the statement **never re-derives and
+  therefore never drifts** from the receipt the customer holds; it falls back to
+  the `Payment` columns otherwise. `reconciliationToCsv` / `reconciliationToPdf`
+  render it.
+- **`/reports` UI** (`app/(app)/reports`) — an **ADMIN-only** area (reports are
+  sensitive financial data; a non-admin gets `notFound()`, matching the pool
+  rail's gating) with a date-range picker, live server-rendered preview
+  (settled + exceptions tables, per-currency stat cards), and **CSV / PDF
+  download** buttons. A gated **Reports** sidebar link (ADMIN only).
+- **API** `GET /api/reports/reconciliation?from&to&format=csv|pdf` — `requireAdmin`
+  (403 otherwise), tenant-scoped, streams the file as an attachment, and
+  **audit-logs every generation** (`recordAudit({ action: "report.generate" })`).
+
+**Verification:** 32 tests — pure `csv`/`scope` units, a DB-backed
+`reconciliation` test (tenant isolation, settled/exceptions split, stored-receipt
+figures, pool-wallet + funds-in-custody handling, totals), a CSV snapshot, a PDF
+smoke test, route RBAC/audit/streaming, and Sidebar link visibility.
+`pnpm typecheck` / `lint` / `build` green (`/reports`, `/api/reports/reconciliation`
+registered). Live-verified against the dev DB: 4 settled / 4 exceptions with
+real stored-receipt figures, drift detected on a real ONCHAIN_CONFIRMED payment,
+CSV + valid PDF rendered.
+
 ## Batch payments P6: end-to-end payment-details UI — #88 (closes epic #80)
 
 The demonstrable end-to-end view and the **final phase of the batch epic (#80)**:
