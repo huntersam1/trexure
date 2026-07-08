@@ -91,3 +91,66 @@ export async function buildReceipt(paymentId: string): Promise<Receipt> {
 
   return json;
 }
+
+/**
+ * On-chain-only receipt for a pool **wallet** claim (P4, #86). The pool withdraw
+ * IS settlement (Rail A — no two-leg fiat match), so there is no `fiat` block and
+ * no FX/anchor fee. Distinguished from the fiat receipt by `rail: "pool-wallet"`.
+ * Renders through the same PDF path (lib/pdf/receipt.ts reads fields defensively).
+ */
+export type PoolReceipt = {
+  id: string;
+  paymentId: string;
+  status: "settled";
+  rail: "pool-wallet";
+  created: string;
+  corridor: { from: string; to: string };
+  amounts: {
+    source: { currency: string; value: string };
+    destination: { currency: string; value: string };
+  };
+  onchain: { txHash: string; ledger: number; nullifierHash: string; asset: string };
+  privacy: { shielded: boolean; viewKeyDisclosed: boolean };
+};
+
+export async function buildPoolWalletReceipt(paymentId: string): Promise<PoolReceipt> {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { legs: true },
+  });
+  if (!payment) throw new Error(`buildPoolWalletReceipt: payment ${paymentId} not found`);
+
+  const onchain = payment.legs.find((l) => l.legType === "ONCHAIN");
+  if (!onchain) throw new Error("buildPoolWalletReceipt: on-chain leg required");
+
+  // XLM in, XLM out — the withdrawn amount equals the source (no FX). 7-dp XLM.
+  const value = new D(payment.sourceAmount.toString()).toFixed(7);
+
+  const json: PoolReceipt = {
+    id: `rcpt_${payment.id}`,
+    paymentId: payment.id,
+    status: "settled",
+    rail: "pool-wallet",
+    created: new Date().toISOString(),
+    corridor: { from: payment.corridorFrom, to: payment.corridorTo },
+    amounts: {
+      source: { currency: payment.corridorFrom, value },
+      destination: { currency: payment.corridorTo, value },
+    },
+    onchain: {
+      txHash: onchain.txHash ?? "",
+      ledger: onchain.ledger ?? 0,
+      nullifierHash: payment.poolNullifierHash ?? "",
+      asset: payment.sourceAsset,
+    },
+    privacy: { shielded: payment.shielded, viewKeyDisclosed: false },
+  };
+
+  await prisma.receipt.upsert({
+    where: { paymentId: payment.id },
+    create: { paymentId: payment.id, json: json as unknown as Prisma.InputJsonValue },
+    update: { json: json as unknown as Prisma.InputJsonValue },
+  });
+
+  return json;
+}
