@@ -12,6 +12,11 @@ async function seedTenant(id: string, intentId: string) {
     update: {},
     create: { id, name: id },
   });
+  await prisma.user.upsert({
+    where: { id: "user_" + id },
+    update: {},
+    create: { id: "user_" + id, tenantId: id, username: "user_" + id, passwordHash: "x" },
+  });
   await prisma.payment.upsert({
     where: { intentId },
     update: {},
@@ -34,7 +39,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.paymentBatch.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
   await prisma.payment.deleteMany({ where: { intentId: { in: [INTENT_A, INTENT_B] } } });
+  await prisma.user.deleteMany({ where: { id: { in: ["user_" + TENANT_A, "user_" + TENANT_B] } } });
   await prisma.tenant.deleteMany({ where: { id: { in: [TENANT_A, TENANT_B] } } });
   await prisma.$disconnect();
 });
@@ -69,5 +76,26 @@ describe("forTenant tenant isolation", () => {
     });
     expect(created.tenantId).toBe(TENANT_A);
     await prisma.payment.delete({ where: { id: created.id } });
+  });
+
+  it("PaymentBatch is tenant-scoped: create forces tenantId and reads isolate", async () => {
+    const created = await forTenant(TENANT_A).paymentBatch.create({
+      data: {
+        // Smuggled TENANT_B must be overridden to TENANT_A.
+        tenantId: TENANT_B,
+        createdByUserId: "user_" + TENANT_A,
+        count: 1,
+        totalSourceAmount: "1.00000000",
+      } as never,
+    });
+    expect(created.tenantId).toBe(TENANT_A);
+
+    // Tenant B cannot see tenant A's batch.
+    const leaked = await forTenant(TENANT_B).paymentBatch.findUnique({ where: { id: created.id } });
+    expect(leaked).toBeNull();
+
+    // Tenant A sees only its own batches.
+    const aRows = await forTenant(TENANT_A).paymentBatch.findMany();
+    expect(aRows.every((b) => b.tenantId === TENANT_A)).toBe(true);
   });
 });

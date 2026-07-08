@@ -15,6 +15,7 @@ if (env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 // Models that carry a `tenantId` column directly.
 const DIRECT_TENANT_MODELS = new Set([
   "Payment",
+  "PaymentBatch",
   "ApiKey",
   "AnchorConfig",
   "ViewKey",
