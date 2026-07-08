@@ -31,4 +31,14 @@ describe("Sidebar", () => {
     render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled poolRailEnabled />);
     expect(screen.getByText("Private Transfer").closest("a")?.getAttribute("href")).toBe("/pool");
   });
+
+  it("shows the ADMIN-only Reports link to /reports (#100)", () => {
+    render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled />);
+    expect(screen.getByText("Reports").closest("a")?.getAttribute("href")).toBe("/reports");
+  });
+
+  it("hides the Reports link from non-admin members (#100)", () => {
+    render(<Sidebar username="member" role="MEMBER" newPaymentsEnabled />);
+    expect(screen.queryByText("Reports")).toBeNull();
+  });
 });

@@ -1,0 +1,271 @@
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+
+import { prisma } from "@/lib/db";
+import {
+  buildReconciliationStatement,
+  reconciliationToCsv,
+  type ReconciliationStatement,
+} from "./reconciliation";
+import type { DateRange } from "./scope";
+
+const TENANT = "test_tenant_recon_r1";
+const OTHER = "test_tenant_recon_r1_other";
+
+const RANGE: DateRange = {
+  from: new Date("2026-07-01T00:00:00.000Z"),
+  to: new Date("2026-07-31T23:59:59.999Z"),
+};
+const IN_RANGE = new Date("2026-07-10T09:00:00.000Z");
+const OUT_OF_RANGE = new Date("2026-06-15T09:00:00.000Z");
+const NOW = new Date("2026-07-31T23:59:59.999Z");
+
+type Leg = {
+  legType: "ONCHAIN" | "FIAT";
+  status?: "PENDING" | "RECEIVED" | "CONFIRMED" | "FAILED";
+  txHash?: string;
+  bankRef?: string;
+};
+
+async function payment(opts: {
+  tenantId: string;
+  intent: string;
+  status: string;
+  createdAt: Date;
+  recipientRef?: string;
+  corridorFrom?: string;
+  corridorTo?: string;
+  sourceAmount?: string;
+  targetCurrency?: string;
+  targetAmount?: string;
+  payoutMethod?: string;
+  legs?: Leg[];
+  receiptJson?: Record<string, unknown>;
+}): Promise<string> {
+  const p = await prisma.payment.create({
+    data: {
+      tenantId: opts.tenantId,
+      intentId: opts.intent,
+      status: opts.status as never,
+      createdAt: opts.createdAt,
+      sourceAsset: "XLM",
+      sourceAmount: opts.sourceAmount ?? "10",
+      targetCurrency: opts.targetCurrency ?? "PHP",
+      targetAmount: opts.targetAmount ?? null,
+      corridorFrom: opts.corridorFrom ?? "XLM",
+      corridorTo: opts.corridorTo ?? "PHP",
+      recipientRef: opts.recipientRef ?? `rcpt_${opts.intent}`,
+      payoutMethod: (opts.payoutMethod as never) ?? null,
+      legs: opts.legs
+        ? {
+            create: opts.legs.map((l) => ({
+              legType: l.legType as never,
+              status: (l.status ?? "PENDING") as never,
+              txHash: l.txHash ?? null,
+              bankRef: l.bankRef ?? null,
+            })),
+          }
+        : undefined,
+    } as never,
+  });
+  if (opts.receiptJson) {
+    await prisma.receipt.create({
+      data: { paymentId: p.id, json: opts.receiptJson as never },
+    });
+  }
+  return p.id;
+}
+
+let settledId: string;
+
+beforeAll(async () => {
+  await prisma.tenant.upsert({ where: { id: TENANT }, update: {}, create: { id: TENANT, name: "Recon HQ" } });
+  await prisma.tenant.upsert({ where: { id: OTHER }, update: {}, create: { id: OTHER, name: "Other Co" } });
+
+  // Settled fiat payment (in range) with a stored receipt — numbers come from it.
+  settledId = await payment({
+    tenantId: TENANT,
+    intent: "recon_settled_1",
+    status: "SETTLED",
+    createdAt: IN_RANGE,
+    recipientRef: "Acme Vendor",
+    sourceAmount: "100",
+    targetCurrency: "PHP",
+    targetAmount: "5670",
+    legs: [
+      { legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_settled_1" },
+      { legType: "FIAT", status: "RECEIVED", bankRef: "BANK-REF-1" },
+    ],
+    receiptJson: {
+      id: "rcpt_from_receipt",
+      amounts: { source: { currency: "XLM", value: "100.00" }, destination: { currency: "PHP", value: "5670.00" } },
+      fx: { rate: "56.70" },
+      fees: { network: "0.00041 XLM", anchor: "PHP 50.00", platform: "0.00" },
+      slippage: "0.0000",
+      onchain: { txHash: "tx_settled_1" },
+      fiat: { bankRef: "BANK-REF-1" },
+    },
+  });
+
+  // Settled pool-wallet payment (in range), on-chain-only receipt (no fx/fiat).
+  await payment({
+    tenantId: TENANT,
+    intent: "recon_settled_pool",
+    status: "SETTLED",
+    createdAt: IN_RANGE,
+    recipientRef: "Freelancer A",
+    sourceAmount: "5",
+    corridorFrom: "XLM",
+    corridorTo: "XLM",
+    targetCurrency: "XLM",
+    targetAmount: "5",
+    payoutMethod: "POOL_WALLET",
+    legs: [{ legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_pool_1" }],
+    receiptJson: {
+      id: "rcpt_pool",
+      rail: "pool-wallet",
+      amounts: { source: { currency: "XLM", value: "5.0000000" }, destination: { currency: "XLM", value: "5.0000000" } },
+      onchain: { txHash: "tx_pool_1" },
+    },
+  });
+
+  // Exceptions (in range).
+  await payment({ tenantId: TENANT, intent: "recon_pending", status: "PENDING", createdAt: IN_RANGE });
+  await payment({
+    tenantId: TENANT,
+    intent: "recon_custody",
+    status: "FAILED",
+    createdAt: IN_RANGE,
+    payoutMethod: "POOL_BANK",
+    legs: [{ legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_custody" }],
+  });
+
+  // Out-of-range settled payment (must be excluded).
+  await payment({ tenantId: TENANT, intent: "recon_june", status: "SETTLED", createdAt: OUT_OF_RANGE });
+
+  // Other tenant's settled payment (must never appear).
+  await payment({ tenantId: OTHER, intent: "recon_other", status: "SETTLED", createdAt: IN_RANGE });
+});
+
+afterAll(async () => {
+  await prisma.receipt.deleteMany({ where: { payment: { tenantId: { in: [TENANT, OTHER] } } } });
+  await prisma.paymentLeg.deleteMany({ where: { payment: { tenantId: { in: [TENANT, OTHER] } } } });
+  await prisma.payment.deleteMany({ where: { tenantId: { in: [TENANT, OTHER] } } });
+  await prisma.tenant.deleteMany({ where: { id: { in: [TENANT, OTHER] } } });
+  await prisma.$disconnect();
+});
+
+describe("buildReconciliationStatement", () => {
+  let stmt: ReconciliationStatement;
+  beforeAll(async () => {
+    stmt = await buildReconciliationStatement(TENANT, RANGE, NOW);
+  });
+
+  it("splits settled rows from exceptions within the range", () => {
+    expect(stmt.settled.map((r) => r.paymentId).sort()).toHaveLength(2);
+    const intents = stmt.exceptions.map((e) => e.status).sort();
+    expect(intents).toEqual(["FAILED", "PENDING"]);
+  });
+
+  it("excludes out-of-range payments", () => {
+    const all = [...stmt.settled.map((r) => r.counterparty), ...stmt.exceptions.map((e) => e.counterparty)];
+    expect(all).not.toContain("rcpt_recon_june");
+  });
+
+  it("is tenant-isolated — other tenants never appear", () => {
+    const ids = [...stmt.settled.map((r) => r.paymentId), ...stmt.exceptions.map((e) => e.paymentId)];
+    for (const id of ids) {
+      expect(id).not.toBe("recon_other");
+    }
+    expect(stmt.settled.length + stmt.exceptions.length).toBe(4);
+  });
+
+  it("pulls settled figures from the stored receipt (no drift)", () => {
+    const row = stmt.settled.find((r) => r.paymentId === settledId)!;
+    expect(row.counterparty).toBe("Acme Vendor");
+    expect(row.sourceAmount).toBe("100.00");
+    expect(row.targetAmount).toBe("5670.00");
+    expect(row.fxRate).toBe("56.70");
+    expect(row.bankRef).toBe("BANK-REF-1");
+    expect(row.receiptId).toBe("rcpt_from_receipt");
+    expect(row.txHash).toBe("tx_settled_1");
+  });
+
+  it("handles the on-chain-only pool-wallet receipt shape (no fx/fiat)", () => {
+    const row = stmt.settled.find((r) => r.corridor === "XLM -> XLM")!;
+    expect(row.fxRate).toBe("");
+    expect(row.bankRef).toBe("");
+    expect(row.txHash).toBe("tx_pool_1");
+  });
+
+  it("flags funds-in-custody on a failed pool-bank claim", () => {
+    const custody = stmt.exceptions.find((e) => e.status === "FAILED")!;
+    expect(custody.reason).toContain("Funds in custody");
+  });
+
+  it("totals settled count and sums destinations per currency", () => {
+    expect(stmt.totals.settledCount).toBe(2);
+    expect(stmt.totals.exceptionCount).toBe(2);
+    const php = stmt.totals.destinationByCurrency.find((t) => t.currency === "PHP");
+    expect(php?.total).toBe("5670");
+  });
+});
+
+describe("reconciliationToCsv", () => {
+  it("renders a stable, sectioned CSV snapshot", () => {
+    const fixture: ReconciliationStatement = {
+      tenantId: "t1",
+      range: { from: "2026-07-01T00:00:00.000Z", to: "2026-07-31T23:59:59.999Z" },
+      generatedAt: "2026-07-31T23:59:59.999Z",
+      settled: [
+        {
+          paymentId: "p1",
+          date: "2026-07-10T09:00:00.000Z",
+          counterparty: "Acme Vendor",
+          corridor: "XLM -> PHP",
+          sourceAsset: "XLM",
+          sourceAmount: "100.00",
+          targetCurrency: "PHP",
+          targetAmount: "5670.00",
+          fxRate: "56.70",
+          fees: "0.00041 XLM; PHP 50.00; platform 0.00",
+          slippage: "0.0000",
+          txHash: "tx_settled_1",
+          bankRef: "BANK-REF-1",
+          receiptId: "rcpt_p1",
+        },
+      ],
+      exceptions: [
+        {
+          paymentId: "p2",
+          date: "2026-07-11T09:00:00.000Z",
+          counterparty: "Bob",
+          corridor: "XLM -> PHP",
+          status: "PENDING",
+          amount: "10 XLM",
+          reason: "Awaiting on-chain confirmation",
+        },
+      ],
+      totals: {
+        settledCount: 1,
+        exceptionCount: 1,
+        sourceBySymbol: [{ currency: "XLM", total: "100" }],
+        destinationByCurrency: [{ currency: "PHP", total: "5670" }],
+      },
+    };
+    expect(reconciliationToCsv(fixture)).toMatchInlineSnapshot(`
+      "# Settled payments
+      Date,Payment ID,Counterparty,Corridor,Source Asset,Source Amount,Target Currency,Target Amount,FX Rate,Fees,Slippage,On-chain Tx,Bank Ref,Receipt ID
+      2026-07-10T09:00:00.000Z,p1,Acme Vendor,XLM -> PHP,XLM,100.00,PHP,5670.00,56.70,0.00041 XLM; PHP 50.00; platform 0.00,0.0000,tx_settled_1,BANK-REF-1,rcpt_p1
+
+      # Exceptions
+      Date,Payment ID,Counterparty,Corridor,Status,Amount,Reason
+      2026-07-11T09:00:00.000Z,p2,Bob,XLM -> PHP,PENDING,10 XLM,Awaiting on-chain confirmation
+
+      # Totals
+      Settled count,1
+      Exception count,1
+      Source total (XLM),100
+      Settled total (PHP),5670"
+    `);
+  });
+});
