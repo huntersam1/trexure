@@ -5,6 +5,42 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reset DB + rich demo seed — #107
+
+A one-command database reset + a deterministic, offline, **rich demo seed** so
+every screen looks real in a demo (payments across both rails + all states, a
+batch with claimed/unclaimed receivers, a populated reconciliation report, view-key
+decrypt, receiver logins). Previously `prisma/seed.ts` created a single sample
+payment.
+
+- **`pnpm db:reset`** (`scripts/db-reset.mjs`) — drops → re-migrates → reseeds
+  (`prisma migrate reset --force` runs the seed). **Guarded**: refuses when
+  `NODE_ENV=production` unless `ALLOW_DB_RESET=true` / `--force`; loudly logs the
+  masked target + env.
+- **Rich seed** (`prisma/seed.ts`, extended) — **deterministic** (fixed IDs + a
+  fixed clock via `SEED_BASE_DATE`, default `2026-07-08`, never `Date.now()`;
+  createdAt spread across ~40 days) and **idempotent** (demo rows are marked with
+  an `intent_demo_` prefix / `DEMO_BATCH_ID` / `ip="seed-script"` and deleted →
+  recreated each run — the Demo Replay sample `intent_seed_demo_` is untouched) and
+  **offline** (plausible sha256 tx hashes + bank refs as data; no live testnet).
+  Seeds a **MEMBER** user + **3 receiver personas** (argon2id logins), **14
+  payments across every `PaymentStatus` and both rails** each with matching legs +
+  a shape-correct `Receipt` (fiat `buildReceipt` shape vs. `pool-wallet` shape),
+  including the reconciliation exceptions (drift, funds-in-custody, pending,
+  reconciling, draft), a **`PaymentBatch`** of 5 (3 claimed / 2 unclaimed), and
+  **AuditLog** rows. Every payment is shielded under the tenant view key so
+  `/decrypt` round-trips.
+- **`docs/demo/demo-credentials.md`** — documented logins (admin / member / 3
+  receivers); plaintext only in the seed log + this doc, never in the DB.
+
+**Verification:** `pnpm typecheck` / `lint` / `build` green. Seed runs clean on the
+dev DB and is idempotent (re-run → identical counts, no duplicate-key errors).
+Live-verified the seeded data reads end-to-end: reconciliation statement (settled +
+all six exception reason types incl. drift + funds-in-custody + non-zero PHP/XLM
+totals), payroll register (batch 3 claimed / 2 unclaimed), **view-key decrypt
+round-trip**, receiver argon2 login, and audit rows. The `db:reset` production
+guard refuses (exit 1) and `ALLOW_DB_RESET=true` overrides.
+
 ## Reporting R5: FX Realized Gain/Loss & Fees Summary — #104 (epic #98, final phase)
 
 The treasury/tax view and the **last phase of the corporate reporting epic
