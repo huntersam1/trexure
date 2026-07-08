@@ -5,6 +5,39 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P4: wallet claim path (withdraw → settle → on-chain receipt) — #86
+
+The simplest claim path (epic #80): a receiver claims a note straight to a
+**crypto wallet**. The pool `withdraw` **is** settlement (Rail A — no two-leg
+fiat match), so this path settles on tx confirm and emits an on-chain-only
+receipt. Fills the P3 `claimToWallet` stub.
+
+- **`lib/receiver/claim.ts#claimToWallet`** — looks up the disbursement `Payment`
+  by the note's public `poolCommitment` (`0x`+32-byte hex), runs the real ZK
+  `createPoolWithdraw` to the receiver's address, then in one transaction writes
+  the `ONCHAIN` `PaymentLeg` (CONFIRMED, tx/ledger, mirroring
+  `worker/jobs/watch-onchain.ts`), sets `poolNullifierHash`, links `receiverId`,
+  and advances the `Payment` to `SETTLED`. **Double-claim** rejected twice over:
+  a DB pre-check (`SETTLED`/nullifier already set → 409) and the on-chain spent
+  nullifier.
+- **On-chain-only receipt** — `lib/reconcile/receipt.ts#buildPoolWalletReceipt`
+  (new, alongside the untouched fiat `buildReceipt`): no `fiat` block, no FX/anchor
+  fee, `rail: "pool-wallet"`, XLM→XLM. Persisted to `Receipt` and returned to the
+  receiver in the claim response; the claim UI shows the settled amount + withdraw
+  tx link + "receipt issued".
+- **Pool sync fix (`lib/pool/sync.ts`)** — `syncPoolLeaves` now **paginates
+  `getEvents` by cursor** until the scan reaches `latest`. The RPC bounds each
+  scan to a ~10k-ledger window, so the old single-call sync silently dropped
+  recent deposits once the pool had been alive longer than that window — the
+  mirror root drifted from on-chain and **every** withdraw failed with "not in
+  the pool". This repairs P4 **and** the standalone pool rail (#65) on the
+  now-aged demo pool.
+- **Tests** — `lib/receiver/claim.test.ts` (DB-backed, mocked withdraw): happy
+  path (leg + SETTLED + nullifier + receiver link + on-chain-only receipt shape),
+  double-claim 409 without re-withdrawing, unknown-note 404. `pnpm typecheck`/
+  `lint`/`build` green. Verified **live on testnet**: batch deposit → wallet claim
+  ZK withdraw (`99c5a7d4…`) → SETTLED + receipt, double-claim rejected.
+
 ## Batch payments P3: receiver (freelancer) auth + interface + claim form — #85
 
 The receiver-facing side of the batch epic (#80): a **separate login + interface**

@@ -9,7 +9,16 @@ import { Icon } from "@/components/ui/Icon";
 const NOTE_PREFIX = "trexure-note-v1-";
 
 type Method = "wallet" | "bank";
-type ClaimResult = { method: Method; txHash: string; explorerUrl: string };
+type ClaimReceipt = {
+  amounts: { destination: { currency: string; value: string } };
+};
+type ClaimResult = {
+  method: Method;
+  txHash: string;
+  explorerUrl: string;
+  paymentId?: string;
+  receipt?: ClaimReceipt;
+};
 
 const inputCls =
   "w-full rounded-lg bg-surface-container-low border border-outline-variant px-3.5 py-2.5 text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
@@ -144,11 +153,20 @@ export function ClaimForm({ csrfToken }: { csrfToken: string }): JSX.Element {
         </p>
       )}
       {result && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-center gap-3">
-          <Icon name="check_circle" className="text-[20px] text-primary" />
-          <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">
-            Paid — view transaction
-          </a>
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex flex-col gap-2">
+          <p className="flex items-center gap-2 text-on-surface font-medium">
+            <Icon name="check_circle" className="text-[20px] text-primary" />
+            {result.receipt
+              ? `Paid ${result.receipt.amounts.destination.value} ${result.receipt.amounts.destination.currency} — settled`
+              : "Claim settled"}
+          </p>
+          <div className="flex items-center gap-4 flex-wrap text-body-sm">
+            <a href={result.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium">
+              <Icon name="open_in_new" className="text-[16px]" />
+              View withdraw transaction
+            </a>
+            {result.receipt && <span className="text-on-surface-variant">On-chain receipt issued.</span>}
+          </div>
         </div>
       )}
     </div>

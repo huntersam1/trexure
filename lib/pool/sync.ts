@@ -39,26 +39,44 @@ export async function syncPoolLeaves(): Promise<bigint[]> {
   const latest = (await srv.getLatestLedger()).sequence;
   // Clamp to the RPC retention window; the deploy is recent for the demo pool.
   const startLedger = Math.max(poolDeploy().deployLedger, latest - 120_000);
-  const res = await srv.getEvents({
-    startLedger,
-    filters: [
-      {
-        type: "contract",
-        contractIds: [poolContractId()],
-        topics: [[xdr.ScVal.scvSymbol("deposit").toXDR("base64")]],
-      },
-    ],
-  });
-  const rows = (res.events ?? []).map((e: { value: unknown }) => {
-    const [commitment, index] = scValToNative(e.value as Parameters<typeof scValToNative>[0]) as [
-      Uint8Array,
-      number,
-      Uint8Array,
-    ];
-    return { index: Number(index), commitment: BigInt("0x" + Buffer.from(commitment).toString("hex")) };
-  });
-  rows.sort((a, b) => a.index - b.index);
-  return rows.map((r) => r.commitment);
+  const filters = [
+    {
+      type: "contract" as const,
+      contractIds: [poolContractId()],
+      topics: [[xdr.ScVal.scvSymbol("deposit").toXDR("base64")]],
+    },
+  ];
+
+  // The RPC bounds each getEvents scan to a fixed ledger window (~10k ledgers),
+  // so a single call from startLedger stops short of `latest` once the pool has
+  // been alive longer than that window — silently dropping recent deposits (and
+  // breaking the withdraw path: the mirror root no longer matches on-chain). Page
+  // forward by cursor until the scan reaches `latest`, collecting every event.
+  type EventsReq = Parameters<typeof srv.getEvents>[0];
+  const rows: { index: number; commitment: bigint }[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const req = (cursor ? { filters, cursor, limit: 200 } : { startLedger, filters, limit: 200 }) as EventsReq;
+    const res = await srv.getEvents(req);
+    for (const e of res.events ?? []) {
+      const [commitment, index] = scValToNative(
+        (e as { value: unknown }).value as Parameters<typeof scValToNative>[0],
+      ) as [Uint8Array, number, Uint8Array];
+      rows.push({ index: Number(index), commitment: BigInt("0x" + Buffer.from(commitment).toString("hex")) });
+    }
+    cursor = (res as { cursor?: string }).cursor;
+    if (!cursor) break;
+    // The cursor's leading toid encodes the ledger scanned up to; stop at latest.
+    const toid = cursor.split("-")[0] ?? "0";
+    const scannedLedger = Number(BigInt(toid) >> 32n);
+    if (scannedLedger >= latest) break;
+  }
+
+  // A deposit index is unique on-chain; dedup defensively in case a boundary
+  // event repeats across pages, keeping leaves ordered by their tree index.
+  const byIndex = new Map<number, bigint>();
+  for (const r of rows) if (!byIndex.has(r.index)) byIndex.set(r.index, r.commitment);
+  return [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c);
 }
 
 /** Build the off-chain Merkle mirror + return the ordered leaves. */
