@@ -1,7 +1,7 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
-import { NOTE_PREFIX } from "@/lib/pool/note";
+import { NOTE_PREFIX, parseNote } from "@/lib/pool/note";
 
 /**
  * Request schemas for the shielded-pool rail (P6, #65). Amounts are whole/decimal
@@ -44,8 +44,46 @@ export const poolBatchSchema = z.object({
   receivers: z.array(poolBatchReceiverSchema).min(1, "add at least one receiver").max(50),
 });
 
+/**
+ * Receiver claim (P3, #85). The note is validated for prefix AND round-trip
+ * parseability (a malformed hex body fails before any payout is attempted). The
+ * payout is a discriminated choice: pay out to a Stellar wallet, or to a PH bank
+ * account via the (mock, until #69) PDAX off-ramp. Wallet execution lands in P4
+ * (#86), bank in P5 (#87).
+ */
+const claimableNote = z
+  .string()
+  .startsWith(NOTE_PREFIX, "not a trexure pool note")
+  .refine((s) => {
+    try {
+      parseNote(s);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "malformed note");
+
+export const claimWalletPayoutSchema = z.object({
+  method: z.literal("wallet"),
+  address: stellarAddress,
+});
+
+export const claimBankPayoutSchema = z.object({
+  method: z.literal("bank"),
+  bankCode: z.string().trim().min(1, "bank code is required").max(32),
+  accountName: z.string().trim().min(1, "account name is required").max(140),
+  accountNumber: z.string().trim().min(4, "account number is too short").max(34),
+});
+
+export const claimSchema = z.object({
+  note: claimableNote,
+  payout: z.discriminatedUnion("method", [claimWalletPayoutSchema, claimBankPayoutSchema]),
+});
+
 export type PoolDepositInput = z.infer<typeof poolDepositSchema>;
 export type PoolWithdrawInput = z.infer<typeof poolWithdrawSchema>;
 export type PoolDemoInput = z.infer<typeof poolDemoSchema>;
 export type PoolBatchReceiverInput = z.infer<typeof poolBatchReceiverSchema>;
 export type PoolBatchInput = z.infer<typeof poolBatchSchema>;
+export type ClaimInput = z.infer<typeof claimSchema>;
+export type ClaimBankPayout = z.infer<typeof claimBankPayoutSchema>;
