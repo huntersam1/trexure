@@ -5,6 +5,42 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P5: bank claim path — mock PDAX off-ramp → reconcile → receipt — #87
+
+The loop-closer (epic #80): a receiver claims a note to a **PH bank account**. The
+pool `withdraw` moves XLM into custody (ONCHAIN leg); a **mock PDAX off-ramp**
+sells XLM→PHP and pays the bank (FIAT leg); the two legs **reconcile by `intentId`**
+into a `SETTLED` payment + a Stripe-style receipt with the fiat block. Fills the P3
+`claimToBank` stub; wires the pool rail into the existing reconcile/receipt spine.
+
+- **`lib/receiver/claim.ts#claimToBank`** — looks up the disbursement `Payment` by
+  the note's `poolCommitment`, runs the real ZK `createPoolWithdraw` into a
+  **custody address** (the server/relayer account), then in one transaction writes
+  the `ONCHAIN` leg + `poolNullifierHash`/`receiverId` and finalizes the corridor as
+  fiat: `payoutMethod=POOL_BANK`, `corridorTo=PHP`, `targetAmount` = quoted PHP,
+  status `ONCHAIN_CONFIRMED`.
+- **Mock off-ramp** — drives the existing `lib/anchor/mock.ts#triggerMockPayout`,
+  which POSTs the **real signed fiat webhook** (`/api/webhooks/fiat`, HMAC-verified,
+  same seam as real PDAX #69) carrying the same `intentId` → writes the `FIAT` leg
+  with the realized PHP amount + `bankRef`.
+- **Reconcile** — the existing `lib/reconcile/matcher.ts#tryReconcile` matches
+  ONCHAIN + FIAT by `intentId` (corridor + 1% FX) → `SETTLED` → `buildReceipt` (the
+  fiat receipt, fiat block populated: FX/fees/net + on-chain tx + bank ref). Called
+  synchronously in the claim so the receiver gets the receipt in one response
+  (idempotent — the webhook also enqueues a worker reconcile).
+- **FX** — added `XLM:PHP` (demo 6.24) to `lib/fx.ts` so the quote, target, and
+  payout amounts stay coherent (state: `PENDING → ONCHAIN_CONFIRMED → SETTLED`).
+- **Failure routing** — the withdraw happens FIRST (funds in custody); if the
+  off-ramp then fails, the webhook marks the FIAT leg + payment `FAILED` and the
+  claim throws **502** — the XLM sits in custody for a manual refund (real PDAX #69
+  would automate the reversal). Documented in code.
+- **Tests** — `lib/receiver/claim.test.ts` gains 2 DB-backed bank cases (happy:
+  both legs + SETTLED + fiat receipt with bank ref; failure: FAILED + 502, ONCHAIN
+  leg still present) with the mock off-ramp writing the FIAT leg (what the webhook
+  does). typecheck/lint/build green. Verified **live on testnet**: deposit → bank
+  claim withdraw-to-custody (`cbe8b64c…`) → real signed webhook → reconciled
+  **SETTLED**, XLM→PHP `12.48 PHP`, fiat receipt with `bankRef`.
+
 ## Batch payments P4: wallet claim path (withdraw → settle → on-chain receipt) — #86
 
 The simplest claim path (epic #80): a receiver claims a note straight to a

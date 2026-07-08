@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from "vitest";
 import { Keypair } from "@stellar/stellar-sdk";
 
-// Mock the network + ZK withdraw; everything else (DB, receipt) runs for real.
-const { createPoolWithdraw } = vi.hoisted(() => ({ createPoolWithdraw: vi.fn() }));
+// Mock the network + ZK withdraw and the mock-anchor HTTP hop; the DB, reconcile
+// matcher, and receipt builder all run for real.
+const { createPoolWithdraw, triggerMockPayout } = vi.hoisted(() => ({
+  createPoolWithdraw: vi.fn(),
+  triggerMockPayout: vi.fn(),
+}));
 vi.mock("@/lib/pool/service", () => ({ createPoolWithdraw }));
+vi.mock("@/lib/anchor/mock", () => ({ triggerMockPayout }));
 
 import { prisma } from "@/lib/db";
 import { submitClaim } from "@/lib/receiver/claim";
@@ -64,6 +69,28 @@ beforeEach(async () => {
     ledger: 99,
     explorerUrl: "https://stellar.expert/explorer/testnet/tx/txwithdraw1",
   });
+  // Default mock off-ramp: write a successful FIAT leg (what the signed webhook
+  // does), keyed by intentId, with the amount the caller quoted.
+  triggerMockPayout.mockReset().mockImplementation(
+    async ({ intentId, amount, currency }: { intentId: string; amount: string; currency: string }) => {
+      const p = await prisma.payment.findUniqueOrThrow({ where: { intentId } });
+      const legData = {
+        status: "RECEIVED" as const,
+        provider: "mock-anchor",
+        providerRef: "mock_ref_1",
+        bankRef: "PH-BANK-TEST",
+        amount,
+        currency,
+        receivedAt: new Date(),
+      };
+      await prisma.paymentLeg.upsert({
+        where: { paymentId_legType: { paymentId: p.id, legType: "FIAT" } },
+        create: { paymentId: p.id, legType: "FIAT", ...legData },
+        update: legData,
+      });
+      return { providerRef: "mock_ref_1", bankRef: "PH-BANK-TEST", status: "completed" as const };
+    },
+  );
   await seed();
 });
 
@@ -83,10 +110,11 @@ describe("wallet claim (P4)", () => {
     expect(res.txHash).toBe("txwithdraw1");
     expect(res.paymentId).toBe(paymentId);
     // On-chain-only receipt shape: no fiat block, rail marker, XLM→XLM.
-    expect(res.receipt?.rail).toBe("pool-wallet");
+    const receipt = res.receipt as { rail: string; amounts: { destination: unknown }; onchain: { txHash: string } };
+    expect(receipt.rail).toBe("pool-wallet");
     expect(res.receipt).not.toHaveProperty("fiat");
-    expect(res.receipt?.amounts.destination).toEqual({ currency: "XLM", value: "10.0000000" });
-    expect(res.receipt?.onchain.txHash).toBe("txwithdraw1");
+    expect(receipt.amounts.destination).toEqual({ currency: "XLM", value: "10.0000000" });
+    expect(receipt.onchain.txHash).toBe("txwithdraw1");
 
     const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { legs: true } });
     expect(payment.status).toBe("SETTLED");
@@ -96,8 +124,8 @@ describe("wallet claim (P4)", () => {
     expect(onchain?.status).toBe("CONFIRMED");
     expect(onchain?.txHash).toBe("txwithdraw1");
 
-    const receipt = await prisma.receipt.findUnique({ where: { paymentId } });
-    expect(receipt).not.toBeNull();
+    const receiptRow = await prisma.receipt.findUnique({ where: { paymentId } });
+    expect(receiptRow).not.toBeNull();
   });
 
   it("rejects a double-claim (409) without withdrawing again", async () => {
@@ -120,5 +148,56 @@ describe("wallet claim (P4)", () => {
       submitClaim(receiverId, { note: orphan, payout: { method: "wallet", address: G } }),
     ).rejects.toMatchObject({ status: 404 });
     expect(createPoolWithdraw).not.toHaveBeenCalled();
+  });
+});
+
+const BANK = { method: "bank" as const, bankCode: "BDO", accountName: "Alice Dev", accountNumber: "0012345678" };
+
+describe("bank claim (P5)", () => {
+  it("withdraws to custody, off-ramps, reconciles both legs → SETTLED + fiat receipt", async () => {
+    const res = await submitClaim(receiverId, { note: noteString, payout: BANK });
+
+    expect(res.method).toBe("bank");
+    expect(res.txHash).toBe("txwithdraw1");
+    expect(triggerMockPayout).toHaveBeenCalledTimes(1);
+    // The off-ramp was quoted the PHP target (10 XLM × 6.24) and paid the bank.
+    expect(triggerMockPayout).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: "62.40", currency: "PHP", recipientRef: "BDO/0012345678" }),
+    );
+
+    const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { legs: true } });
+    expect(payment.status).toBe("SETTLED");
+    expect(payment.payoutMethod).toBe("POOL_BANK");
+    expect(payment.corridorTo).toBe("PHP");
+    expect(payment.targetAmount?.toString()).toBe("62.4");
+    expect(payment.legs.find((l) => l.legType === "ONCHAIN")?.status).toBe("CONFIRMED");
+    expect(payment.legs.find((l) => l.legType === "FIAT")?.status).toBe("RECEIVED");
+
+    // Fiat receipt: fiat block populated with the bank ref.
+    const receipt = res.receipt as { fiat: { bankRef: string }; amounts: { destination: { currency: string } } };
+    expect(receipt.fiat.bankRef).toBe("PH-BANK-TEST");
+    expect(receipt.amounts.destination.currency).toBe("PHP");
+  });
+
+  it("routes an off-ramp failure after withdraw to FAILED + 502 (custody holds XLM)", async () => {
+    // Override once: the payout fails → FAILED FIAT leg + payment FAILED (webhook behavior).
+    triggerMockPayout.mockImplementationOnce(async ({ intentId }: { intentId: string }) => {
+      const p = await prisma.payment.findUniqueOrThrow({ where: { intentId } });
+      await prisma.paymentLeg.upsert({
+        where: { paymentId_legType: { paymentId: p.id, legType: "FIAT" } },
+        create: { paymentId: p.id, legType: "FIAT", status: "FAILED", provider: "mock-anchor", providerRef: "r", bankRef: "b" },
+        update: { status: "FAILED" },
+      });
+      await prisma.payment.update({ where: { id: p.id }, data: { status: "FAILED" } });
+      return { providerRef: "r", bankRef: "b", status: "failed" as const };
+    });
+
+    await expect(submitClaim(receiverId, { note: noteString, payout: BANK })).rejects.toMatchObject({ status: 502 });
+
+    // The withdraw already happened (ONCHAIN leg present); payment is FAILED, not SETTLED.
+    const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { legs: true } });
+    expect(payment.status).toBe("FAILED");
+    expect(payment.legs.find((l) => l.legType === "ONCHAIN")?.status).toBe("CONFIRMED");
+    expect(createPoolWithdraw).toHaveBeenCalledTimes(1);
   });
 });
