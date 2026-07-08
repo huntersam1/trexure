@@ -7,7 +7,10 @@ const { createPoolWithdraw, triggerMockPayout } = vi.hoisted(() => ({
   createPoolWithdraw: vi.fn(),
   triggerMockPayout: vi.fn(),
 }));
-vi.mock("@/lib/pool/service", () => ({ createPoolWithdraw }));
+vi.mock("@/lib/pool/service", () => ({
+  createPoolWithdraw,
+  custodyAddress: () => "GCUSTODYTEST0000000000000000000000000000000000000000000",
+}));
 vi.mock("@/lib/anchor/mock", () => ({ triggerMockPayout }));
 
 import { prisma } from "@/lib/db";

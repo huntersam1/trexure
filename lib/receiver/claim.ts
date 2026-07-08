@@ -1,12 +1,9 @@
 import "server-only";
 
-import { Keypair } from "@stellar/stellar-sdk";
-
 import { prisma } from "@/lib/db";
-import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
 import { parseNote } from "@/lib/pool/note";
-import { createPoolWithdraw } from "@/lib/pool/service";
+import { createPoolWithdraw, custodyAddress } from "@/lib/pool/service";
 import { poolContractId } from "@/lib/pool/sync";
 import { triggerMockPayout } from "@/lib/anchor/mock";
 import { tryReconcile } from "@/lib/reconcile/matcher";
@@ -129,8 +126,7 @@ async function claimToBank(receiverId: string, noteString: string, bank: ClaimBa
 
   // 1) Real ZK withdraw into custody (the server/relayer account holds the XLM
   //    while the off-ramp settles). Rejected on-chain if the nullifier is spent.
-  const custody = Keypair.fromSecret(env.STELLAR_SOURCE_SECRET).publicKey();
-  const withdraw = await createPoolWithdraw({ note: noteString, recipient: custody });
+  const withdraw = await createPoolWithdraw({ note: noteString, recipient: custodyAddress() });
 
   // 2) Finalize the disbursement as a fiat (PHP) corridor + write the ONCHAIN
   //    leg. targetAmount is the quoted PHP the off-ramp must land within 1%.
