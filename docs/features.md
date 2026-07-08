@@ -5,6 +5,57 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reporting R2: Compliance & Audit Disclosure Pack — #101 (epic #98)
+
+The report **only Trexure can produce**: a period (and optionally
+single-counterparty) package a company hands to its external auditor, the BIR, or
+AMLC that proves each payment is real, settled, and to whom — revealed **only via
+the tenant's view key** — while the public ledger stays shielded. Reuses R1's
+`lib/reports/**` foundation.
+
+- **The Disclosure Pack** (`lib/reports/disclosure.ts`) —
+  `buildDisclosurePack(tenantId, range, { counterparty?, actorUserId })` reads
+  through `forTenant()` (tenant-isolated) and, per payment, assembles:
+  - **Decrypted details** — `sender`/`recipient`/`asset`/`amount`/`targetCurrency`
+    /`memo` revealed by decrypting `encryptedPayload` with the tenant view key
+    (`loadViewKey` + `decryptWithViewKey`, the same path as
+    `app/api/payments/[id]/decrypt`). The key is loaded **lazily** (only when the
+    period has something shielded), used in-process, and **zeroized in a `finally`**;
+    it is never returned or logged. Non-shielded / undecryptable payments are still
+    listed with `disclosed: null` + a note.
+  - **Proof it happened** — the on-chain tx hash + `proofHash` (ZK commitment) with
+    a stellar.expert link an auditor can verify independently.
+  - **Proof it settled** — both legs (ONCHAIN + FIAT) with statuses, realized FX,
+    and bank ref; the receipt id (pulled from the stored `Receipt.json`).
+- **Self-auditing disclosure** — every reveal writes a `viewkey.decrypt` AuditLog
+  row (payment as target) and the pack writes one `report.disclosure` row, so a
+  regulator can see exactly what was revealed, by whom, and when.
+- **Renderers** — a signed-looking **PDF** (`disclosurePackToPdf`: cover summary
+  with tenant/period/counterparty/generated-by/count + verification note, then a
+  disclosed-details table and a proof-of-settlement table) plus machine-readable
+  **CSV** (`disclosurePackToCsv`) and **JSON** (`disclosurePackToJson`) appendices
+  auditors can script against — all via R1's `csv`/`pdf` foundation.
+- **`/reports/disclosure` UI** — an **ADMIN-only** page (decrypting is the most
+  sensitive action in the app; a non-admin gets `notFound()`) with a
+  period + counterparty picker, a **non-decrypting scope preview**
+  (`previewDisclosureScope` — counts + opaque counterparty refs, **no reveal, no
+  audit**), and Generate PDF / CSV / JSON buttons. Discoverable via a card on
+  `/reports`.
+- **API** `GET /api/reports/disclosure?from&to&counterparty&format=pdf|csv|json`
+  — `requireAdmin` (403/401 otherwise), tenant-scoped, streams the file as an
+  attachment. The decryption + audit logging live in the builder, so the route
+  only gates, generates, and streams.
+
+**Verification:** 16 tests — a DB-backed `disclosure` test (real view-key
+encrypt/decrypt round-trip, reveal correctness, non-shielded handling, tenant
+isolation incl. a same-`recipientRef` other-tenant decoy, counterparty filter,
+audit-row counts, non-auditing preview, CSV/JSON renderers) + route
+RBAC/streaming/format/actor tests. `pnpm typecheck` / `lint` / `build` green
+(`/reports/disclosure`, `/api/reports/disclosure` registered). Live-verified
+end-to-end against the dev DB: a shielded payment revealed under the view key,
+on-chain proof + explorer link, both settlement legs + FX + bank ref, both audit
+rows written, and a valid PDF + CSV + JSON pack rendered.
+
 ## Reporting R1: Reconciliation / Settlement Statement (+ reporting foundation) — #100 (epic #98)
 
 The month-end finance export — every settled payment for a period plus the
