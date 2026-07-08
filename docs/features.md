@@ -5,6 +5,46 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P6: end-to-end payment-details UI — #88 (closes epic #80)
+
+The demonstrable end-to-end view and the **final phase of the batch epic (#80)**:
+from a batch send, through on-chain receive + reconciliation, to a Stripe-like
+receipt — one screen a judge can follow, for both wallet (P4) and bank (P5) claims.
+
+- **Batch overview** `app/(app)/pool/batches` — every `PaymentBatch` for the
+  tenant with a live per-status **roll-up** (PENDING / ONCHAIN_CONFIRMED /
+  RECONCILING / SETTLED / FAILED), totals, and created-by; drills into a batch
+  detail listing each child disbursement, which links to its payment detail.
+  New read model `lib/pool/batch-data.ts` (`listPoolBatches` / `getPoolBatchDetail`,
+  tenant-scoped by explicit `tenantId`).
+- **Per-payment detail** `app/(app)/pool/batches/[id]/[paymentId]` — a dedicated,
+  self-contained surface (the fiat `PaymentLifecycle`/`ReceiptPanel` are coupled to
+  the fiat receipt shape and would break on the on-chain-only pool receipt):
+  - **Timeline** (`components/pool/Timeline.tsx`) PENDING → ONCHAIN_CONFIRMED →
+    RECONCILING → SETTLED (+ FAILED).
+  - **Legs** (ONCHAIN + FIAT) with stellar.expert tx links, bank ref, amounts.
+  - **View-key decrypt** — reuses `POST /api/payments/[id]/decrypt`. Made possible
+    by shielding batch disbursements at send time: `lib/pool/batch.ts` now encrypts
+    `{sender, recipient, asset, amount}` under the tenant view key (the canonical
+    enclave payload shape), so the payer can selectively reveal receiver details
+    (the accountant story). Guarded — a tenant without a view key skips shielding.
+  - **Receipt** (`components/pool/PoolReceiptCard.tsx`) — renders BOTH the
+    on-chain-only wallet receipt and the full fiat receipt (defensive field reads);
+    **PDF export** reuses `POST /api/payments/[id]/receipt/pdf`.
+- **Navigation** — a gated **Batch payments** sidebar link; the batch-send results
+  now link straight to the batch overview.
+- **Tests** — `PoolReceiptCard.test.tsx` (jsdom: both receipt shapes + timeline
+  step/failed states), `batch-data.test.ts` (DB-backed roll-up + cross-tenant
+  isolation). typecheck/lint/build green. Verified **live**: batch of 2 (shielded)
+  → decrypt reveals the receiver → wallet claim (`9806a2c9…`) → roll-up `SETTLED 1 /
+  PENDING 1`, settled child carries a receipt.
+
+**Epic #80 complete** (P1 schema → P2 batch send → P3 receiver persona → P4 wallet
+claim → P5 bank claim → P6 end-to-end UI): a payer sends one private batch to many
+freelancers, each gets a claimable note, receivers claim to a wallet or PH bank
+through a separate interface, the bank path reconciles to a Stripe-style receipt,
+and the whole journey is demonstrable in the app. [[trexure-real-zk]]
+
 ## Batch payments P5: bank claim path — mock PDAX off-ramp → reconcile → receipt — #87
 
 The loop-closer (epic #80): a receiver claims a note to a **PH bank account**. The

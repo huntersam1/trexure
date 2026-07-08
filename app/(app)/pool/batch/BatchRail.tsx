@@ -198,9 +198,13 @@ export function BatchRail({ csrfToken }: { csrfToken: string }): JSX.Element {
                 Batch sent — {result.count}/{result.requested} succeeded
               </h2>
             </div>
-            <span className="text-body-sm text-on-surface-variant">
-              {result.totalSourceAmount} XLM disbursed · batch {short(result.batchId)}
-            </span>
+            <a
+              href={`/pool/batches/${result.batchId}`}
+              className="inline-flex items-center gap-1.5 text-body-sm text-primary hover:underline font-medium"
+            >
+              <Icon name="open_in_new" className="text-[16px]" />
+              {result.totalSourceAmount} XLM disbursed · view batch
+            </a>
           </div>
 
           <div className="flex items-start gap-2 rounded-lg border border-accent/40 bg-accent/5 px-4 py-3 text-body-sm text-on-surface">
