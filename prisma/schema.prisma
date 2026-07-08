@@ -12,6 +12,14 @@ enum Role {
   MEMBER
 }
 
+// How a batch disbursement is paid out to its receiver (P1: schema only;
+// wired in P4/P5). POOL_WALLET = withdraw straight to a wallet (on-chain is
+// settlement); POOL_BANK = withdraw to custody then mock PDAX off-ramp → fiat.
+enum PayoutMethod {
+  POOL_WALLET
+  POOL_BANK
+}
+
 enum PaymentStatus {
   DRAFT
   PENDING
@@ -34,39 +42,86 @@ enum LegStatus {
 }
 
 model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  users     User[]
-  payments  Payment[]
-  viewKey   ViewKey?
-  apiKeys   ApiKey[]
-  anchors   AnchorConfig[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String         @id @default(cuid())
+  name           String
+  users          User[]
+  payments       Payment[]
+  paymentBatches PaymentBatch[]
+  viewKey        ViewKey?
+  apiKeys        ApiKey[]
+  anchors        AnchorConfig[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 model User {
-  id           String   @id @default(cuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  username     String   @unique
-  passwordHash String                 // argon2id; NEVER plaintext
-  role         Role     @default(MEMBER)
-  sessions     Session[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String         @id @default(cuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  username       String         @unique
+  passwordHash   String // argon2id; NEVER plaintext
+  role           Role           @default(MEMBER)
+  sessions       Session[]
+  createdBatches PaymentBatch[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
   @@index([tenantId])
 }
 
-model Session {
+// Receiver (freelancer) persona — a global identity, NOT tenant-scoped: a
+// receiver can be paid by any tenant. Isolated from `User`/`Session` so the
+// tenant app shell and the receiver claim interface never share a session.
+// Auth logic (login/session helpers, layout) lands in P3; this is the model.
+model Receiver {
+  id           String            @id @default(cuid())
+  email        String            @unique // login identity; matched to batch rows
+  passwordHash String // argon2id; NEVER plaintext
+  sessions     ReceiverSession[]
+  payments     Payment[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model ReceiverSession {
   id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash  String   @unique           // store hash of session token, not the token
+  receiverId String
+  receiver   Receiver @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique // store hash of session token, not the token
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   ip         String?
   userAgent  String?
+
+  @@index([receiverId])
+}
+
+// Groups the child `Payment`s created by one batch-send (P2). Tenant-scoped
+// (direct `tenantId`; reachable through forTenant() — see lib/db.ts).
+model PaymentBatch {
+  id                String    @id @default(cuid())
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  createdByUserId   String
+  createdBy         User      @relation(fields: [createdByUserId], references: [id])
+  count             Int
+  totalSourceAmount Decimal   @db.Decimal(38, 8)
+  payments          Payment[]
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique // store hash of session token, not the token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  ip        String?
+  userAgent String?
+
   @@index([userId])
 }
 
@@ -74,35 +129,51 @@ model ViewKey {
   id           String   @id @default(cuid())
   tenantId     String   @unique
   tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  encryptedKey Bytes                    // AES-256-GCM, app/KMS-encrypted at rest
+  encryptedKey Bytes // AES-256-GCM, app/KMS-encrypted at rest
   nonce        Bytes
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
 
 model Payment {
-  id               String        @id @default(cuid())
-  tenantId         String
-  tenant           Tenant        @relation(fields: [tenantId], references: [id])
-  intentId         String        @unique   // reconciliation join key (in memo + fiat ref)
-  status           PaymentStatus @default(DRAFT)
-  sourceAsset      String
-  sourceAmount     Decimal       @db.Decimal(38, 8)
-  targetCurrency   String
-  targetAmount     Decimal?      @db.Decimal(38, 8)
-  corridorFrom     String
-  corridorTo       String
-  recipientRef     String                    // opaque; PII minimized
-  shielded         Boolean       @default(true)
-  encryptedPayload Bytes?                     // ZK-shielded payload blob
-  payloadNonce     Bytes?
-  proofHash        String?
-  legs             PaymentLeg[]
-  receipt          Receipt?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id                String        @id @default(cuid())
+  tenantId          String
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  intentId          String        @unique // reconciliation join key (in memo + fiat ref)
+  status            PaymentStatus @default(DRAFT)
+  sourceAsset       String
+  sourceAmount      Decimal       @db.Decimal(38, 8)
+  targetCurrency    String
+  targetAmount      Decimal?      @db.Decimal(38, 8)
+  corridorFrom      String
+  corridorTo        String
+  recipientRef      String // opaque; PII minimized
+  shielded          Boolean       @default(true)
+  encryptedPayload  Bytes? // ZK-shielded payload blob
+  payloadNonce      Bytes?
+  proofHash         String?
+  // --- Batch pool payout (P1 schema; wired in P2/P4/P5). All optional so
+  // existing fiat/reconcile payments are untouched. ---
+  batchId           String?
+  batch             PaymentBatch? @relation(fields: [batchId], references: [id])
+  payoutMethod      PayoutMethod?
+  poolCommitment    String? // public note commitment (deposit)
+  poolNullifierHash String? // public nullifier hash (withdraw)
+  receiverId        String?
+  receiver          Receiver?     @relation(fields: [receiverId], references: [id])
+  // Claimable note re-shown to the payer, encrypted under the tenant view key
+  // (never a plaintext bearer note). Nonce paired per-record.
+  encryptedNote     Bytes?
+  noteNonce         Bytes?
+  legs              PaymentLeg[]
+  receipt           Receipt?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
+  @@index([batchId])
+  @@index([receiverId])
 }
 
 model PaymentLeg {
@@ -123,7 +194,8 @@ model PaymentLeg {
   currency    String?
   receivedAt  DateTime?
   createdAt   DateTime  @default(now())
-  @@unique([paymentId, legType])           // idempotency: one leg of each type
+
+  @@unique([paymentId, legType]) // idempotency: one leg of each type
   @@index([txHash])
   @@index([providerRef])
 }
@@ -132,8 +204,8 @@ model Receipt {
   id          String   @id @default(cuid())
   paymentId   String   @unique
   payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  json        Json                          // the Stripe-ified object (§6.4)
-  pdfKey      String?                       // storage key if exported
+  json        Json // the Stripe-ified object (§6.4)
+  pdfKey      String? // storage key if exported
   generatedAt DateTime @default(now())
 }
 
@@ -141,10 +213,11 @@ model AnchorConfig {
   id            String   @id @default(cuid())
   tenantId      String
   tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  provider      String                       // "xendit"
-  webhookSecret Bytes                         // encrypted at rest
+  provider      String // "xendit"
+  webhookSecret Bytes // encrypted at rest
   config        Json
   createdAt     DateTime @default(now())
+
   @@index([tenantId])
 }
 
@@ -153,21 +226,23 @@ model ApiKey {
   tenantId   String
   tenant     Tenant    @relation(fields: [tenantId], references: [id])
   name       String
-  keyHash    String    @unique              // store hash only
+  keyHash    String    @unique // store hash only
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
+
   @@index([tenantId])
 }
 
 model WebhookEvent {
   id          String    @id @default(cuid())
   provider    String
-  externalId  String                        // provider event id for idempotency
+  externalId  String // provider event id for idempotency
   verified    Boolean
   payload     Json
   processedAt DateTime?
   createdAt   DateTime  @default(now())
+
   @@unique([provider, externalId])
 }
 
@@ -175,10 +250,11 @@ model AuditLog {
   id        String   @id @default(cuid())
   tenantId  String?
   userId    String?
-  action    String                          // e.g. "viewkey.decrypt", "auth.login"
+  action    String // e.g. "viewkey.decrypt", "auth.login"
   target    String?
   metadata  Json?
   ip        String?
   createdAt DateTime @default(now())
+
   @@index([tenantId, createdAt])
 }

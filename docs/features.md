@@ -5,6 +5,32 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P1: schema — Receiver persona + PaymentBatch + pool payout fields — #83
+
+Foundation schema for the **batch private payments epic (#80)** — the tables
+that let a pool payment become a first-class `Payment` (reconcilable, receiptable)
+and give freelancer receivers their own identity. Schema/migration only; the
+service, API, and UI land in P2–P6.
+
+- **`Receiver` persona** — a **global** identity (NOT tenant-scoped: any tenant
+  can pay any receiver), isolated from the tenant `User`/`Session`. Carries an
+  `email` login identity + argon2id `passwordHash`, with its own
+  **`ReceiverSession`** table (mirrors `Session`) so the tenant app shell and the
+  receiver claim interface never share a session. Chose a separate model over
+  `Role.RECEIVER` because receivers aren't tenant members.
+- **`PaymentBatch`** — groups the child `Payment`s of one batch-send
+  (`tenantId`, `createdByUserId`, `count`, `totalSourceAmount`). Tenant-scoped:
+  added to `DIRECT_TENANT_MODELS` in `lib/db.ts` so `forTenant()` forces/filters
+  `tenantId` (covered by a new case in `test/tenant-isolation.test.ts`).
+- **`Payment` extensions (all optional/additive)** — `batchId?`, `payoutMethod?`
+  (`POOL_WALLET | POOL_BANK` enum), `poolCommitment?`, `poolNullifierHash?`,
+  `receiverId?`. **No plaintext bearer notes:** only the public
+  commitment/nullifierHash are stored; if the note must be re-shown to the payer
+  it lands in `encryptedNote`/`noteNonce` (Bytes, view-key encrypted). Indexed on
+  `batchId` and `receiverId`; existing fiat/reconcile payments untouched.
+- **Migration** `add_batch_payments_receiver_persona` applies cleanly on a fresh
+  DB; `prisma generate` + typecheck + lint + `next build` green.
+
 ## Shielded pool P6: app rail UI (Private on-chain transfer) — #65
 
 Surfaces the pool as a **new "Private on-chain transfer" rail** in the app,
