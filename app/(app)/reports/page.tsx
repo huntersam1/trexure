@@ -107,6 +107,24 @@ export default async function ReportsPage({
         <Icon name="arrow_forward" className="text-[20px] text-on-surface-variant group-hover:text-primary" />
       </Link>
 
+      <Link
+        href={`/reports/fx?${query}` as Route}
+        className="group flex items-center gap-4 rounded-xl border border-outline-variant bg-surface p-5 hover:border-primary/40"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary-container text-on-primary-container">
+          <Icon name="currency_exchange" className="text-[22px]" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-geist text-body-lg text-on-surface group-hover:text-primary">
+            FX Realized Gain/Loss & Fees
+          </span>
+          <span className="block text-body-sm text-on-surface-variant">
+            Treasury/tax view — realized rate, spread vs. quote, and fees per off-ramp with corridor totals.
+          </span>
+        </span>
+        <Icon name="arrow_forward" className="text-[20px] text-on-surface-variant group-hover:text-primary" />
+      </Link>
+
       <section className="flex flex-col gap-stack-md">
         <div className="flex items-center justify-between">
           <h2 className="font-geist text-headline-sm text-on-surface">

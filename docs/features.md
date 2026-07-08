@@ -5,6 +5,43 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reporting R5: FX Realized Gain/Loss & Fees Summary — #104 (epic #98, final phase)
+
+The treasury/tax view and the **last phase of the corporate reporting epic
+(#98)**: for a period, over every settled payment that off-ramped to fiat, what
+rate it realized, the spread vs. the intent-time quote, and the fees — with
+per-corridor aggregates for cost tracking and realized-FX tax. Reuses R1's
+`lib/reports/**` foundation.
+
+- **The summary** (`lib/reports/fx.ts`) — `buildFxSummary(tenantId, range)`,
+  tenant-isolated via `forTenant`. Scoped to **settled payments with a FIAT leg**
+  (POOL_BANK / anchor payouts); pool-wallet XLM→XLM settlements are excluded (no
+  FX). All figures **read from the stored fiat `Receipt.json`** (destination
+  amount, realized `fx.rate`, `fees`, `slippage`) — never recomputed — with the
+  intent-time quote (`Payment.targetAmount`) as the reference. Per payment:
+  realized amount/rate, reference amount/rate, **realized gain/loss** (realized −
+  reference), anchor + network fees (numeric, parsed from the formatted receipt
+  fee strings), slippage, tx + bank refs. **Aggregates per corridor**: totals
+  (source, realized, reference, fees), **weighted-average realized + reference
+  rate**, and total realized gain/loss. `fxSummaryToCsv` / `fxSummaryToPdf` render
+  it.
+- **`/reports/fx` UI** — **ADMIN-only** (treasury/tax data; `role !== "ADMIN"` →
+  `notFound()`), date-range picker, per-corridor aggregate + per-payment tables
+  (gain/loss colored), and CSV / PDF download. Gated card on `/reports`.
+- **API** `GET /api/reports/fx?from&to&format=csv|pdf` — `requireAdmin` (403/401),
+  tenant-scoped, audit-logs every generation (`report.generate`, `report:fx`),
+  streams the file.
+
+**Verification:** 10 tests — a DB-backed builder test (reads realized figures
+from the stored receipt; **gain vs. loss** vs. the intent quote; per-corridor
+aggregation incl. **weighted-average rate** and total gain/loss; excludes
+pool-wallet / pending / out-of-range / other tenants; **zero-fiat period without
+dividing by zero**), a CSV snapshot, and route RBAC/audit/streaming tests. `pnpm
+typecheck` / `lint` / `build` green (`/reports/fx`, `/api/reports/fx` registered).
+Live-verified end-to-end against the dev DB: 2 fiat off-ramps (a +6 gain and a −3
+loss) → correct per-payment rows, aggregate totals (weighted-avg 6.26, total G/L
++3, fees 75), valid PDF + CSV, and a clean zero-fiat period.
+
 ## Reporting R4: Proof-of-Payment Attestation — #103 (epic #98)
 
 A single shareable, tamper-evident document a company sends a vendor (or keeps
