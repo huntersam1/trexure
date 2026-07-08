@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/session";
 import { problem, AppError } from "@/lib/http/problem";
+import { logger } from "@/lib/log";
 import { parseDateRange, toDateInput } from "@/lib/reports/scope";
 import {
   buildDisclosurePack,
@@ -24,6 +25,15 @@ export async function GET(req: Request): Promise<Response> {
   try {
     const admin = await requireAdmin();
 
+    // Decrypting under the tenant view key is sensitive and this is a GET (a
+    // download link, so the double-submit CSRF token can't ride it). Reject an
+    // explicit cross-site trigger — e.g. a forged `<img src>` that would force a
+    // logged-in admin's browser to mass-decrypt. Same-origin / direct-navigation
+    // (`none`) / header-less requests still pass, so the download UX is intact.
+    if (req.headers.get("sec-fetch-site") === "cross-site") {
+      return problem(403, "Forbidden", "Cross-site request not allowed.");
+    }
+
     const url = new URL(req.url);
     const fmt = url.searchParams.get("format");
     const format = fmt === "pdf" ? "pdf" : fmt === "json" ? "json" : "csv";
@@ -35,6 +45,7 @@ export async function GET(req: Request): Promise<Response> {
     const pack = await buildDisclosurePack(admin.tenantId, range, {
       counterparty,
       actorUserId: admin.id,
+      ip: req.headers.get("x-forwarded-for"),
     });
 
     const from = toDateInput(range.from);
@@ -75,6 +86,10 @@ export async function GET(req: Request): Promise<Response> {
     });
   } catch (err) {
     if (err instanceof AppError) return problem(err.status, err.title, err.detail);
-    return problem(400, "Bad Request", "Could not generate the disclosure pack.");
+    // A non-AppError here is an unexpected server/infra failure (DB down, PDF
+    // render error, a failed fail-closed audit write) — surface it as 500 with a
+    // stack for ops, not a misleading 400.
+    logger.error({ err }, "disclosure pack generation failed");
+    return problem(500, "Internal Server Error", "Could not generate the disclosure pack.");
   }
 }

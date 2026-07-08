@@ -1,9 +1,8 @@
 import "server-only";
-import { forTenant } from "../db";
+import { forTenant, prisma } from "../db";
 import { Prisma } from "../generated/prisma/client";
 import { loadViewKey } from "../crypto/viewkey";
 import { decryptWithViewKey } from "../zk";
-import { recordAudit } from "../audit/log";
 import { logger } from "../log";
 import { toCsv, type CsvColumn } from "./csv";
 import { renderReportPdf, type ReportDoc, type ReportSummaryLine } from "./pdf";
@@ -142,7 +141,7 @@ function toEntry(p: PaymentWithRelations, disclosed: DisclosedDetails | null, no
 export async function buildDisclosurePack(
   tenantId: string,
   range: DateRange,
-  opts: { counterparty?: string | null; actorUserId: string },
+  opts: { counterparty?: string | null; actorUserId: string; ip?: string | null },
   now: Date = new Date(),
 ): Promise<DisclosurePack> {
   const db = forTenant(tenantId);
@@ -163,7 +162,7 @@ export async function buildDisclosurePack(
   const viewKey = hasShielded ? await loadViewKey(tenantId) : null;
 
   const entries: DisclosureEntry[] = [];
-  let revealedCount = 0;
+  const revealedIds: string[] = [];
   try {
     for (const p of payments) {
       if (!p.encryptedPayload || !p.payloadNonce) {
@@ -177,16 +176,7 @@ export async function buildDisclosurePack(
           Buffer.from(p.payloadNonce),
         );
         entries.push(toEntry(p, toDisclosed(payload), "Revealed under tenant view key"));
-        revealedCount += 1;
-        // Every decrypt is audited (payment as target) so the disclosure itself
-        // is auditable — a regulator sees exactly what was revealed, by whom.
-        await recordAudit({
-          action: "viewkey.decrypt",
-          tenantId,
-          userId: opts.actorUserId,
-          target: p.id,
-          metadata: { report: "disclosure" },
-        });
+        revealedIds.push(p.id);
       } catch (err) {
         logger.error({ err, paymentId: p.id }, "disclosure decrypt failed");
         entries.push(toEntry(p, null, "Decrypt failed — payload unreadable with current view key"));
@@ -196,16 +186,48 @@ export async function buildDisclosurePack(
     viewKey?.fill(0); // zeroize — never returned, never logged
   }
 
-  // Pack-level audit row: the disclosure event itself.
-  await recordAudit({
-    action: "report.disclosure",
-    tenantId,
-    userId: opts.actorUserId,
-    target: `disclosure:${range.from.toISOString().slice(0, 10)}..${range.to
-      .toISOString()
-      .slice(0, 10)}${counterparty ? `:${counterparty}` : ""}`,
-    metadata: { report: "disclosure", counterparty, paymentCount: payments.length, revealedCount },
-  });
+  const revealedCount = revealedIds.length;
+  const ip = opts.ip ?? null;
+  const packTarget = `disclosure:${range.from.toISOString().slice(0, 10)}..${range.to
+    .toISOString()
+    .slice(0, 10)}${counterparty ? `:${counterparty}` : ""}`;
+
+  // Fail-CLOSED audit: write every per-reveal `viewkey.decrypt` row (payment as
+  // target, with caller IP) AND the pack-level `report.disclosure` row in ONE
+  // transaction, UN-guarded, before the pack is returned. If the audit write
+  // fails the whole disclosure aborts (the caller 500s) so shielded data is never
+  // delivered without its audit trail — the compliance guarantee this report
+  // exists to provide. (recordAudit's best-effort swallow is deliberately not
+  // used here; a regulator must be able to see exactly what was revealed.)
+  await prisma.$transaction([
+    ...revealedIds.map((id) =>
+      prisma.auditLog.create({
+        data: {
+          action: "viewkey.decrypt",
+          tenantId,
+          userId: opts.actorUserId,
+          target: id,
+          ip,
+          metadata: { report: "disclosure" } as never,
+        },
+      }),
+    ),
+    prisma.auditLog.create({
+      data: {
+        action: "report.disclosure",
+        tenantId,
+        userId: opts.actorUserId,
+        target: packTarget,
+        ip,
+        metadata: {
+          report: "disclosure",
+          counterparty,
+          paymentCount: payments.length,
+          revealedCount,
+        } as never,
+      },
+    }),
+  ]);
 
   return {
     tenantId,

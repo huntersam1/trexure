@@ -48,6 +48,16 @@ describe("GET /api/reports/disclosure", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects an explicit cross-site request with 403 and never decrypts", async () => {
+    h.requireAdmin.mockResolvedValue(ADMIN);
+    const r = new Request("http://localhost/api/reports/disclosure?from=2026-07-01&to=2026-07-31", {
+      headers: { "sec-fetch-site": "cross-site" },
+    });
+    const res = await GET(r);
+    expect(res.status).toBe(403);
+    expect(h.buildDisclosurePack).not.toHaveBeenCalled();
+  });
+
   it("streams a tenant-scoped CSV appendix and passes the actor to the builder", async () => {
     h.requireAdmin.mockResolvedValue(ADMIN);
     const res = await GET(req("from=2026-07-01&to=2026-07-31&format=csv"));

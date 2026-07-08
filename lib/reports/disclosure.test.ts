@@ -251,6 +251,19 @@ describe("previewDisclosureScope", () => {
   });
 });
 
+describe("audit trail (fail-closed)", () => {
+  it("stamps every viewkey.decrypt row with the caller IP", async () => {
+    await prisma.auditLog.deleteMany({ where: { tenantId: TENANT } });
+    await buildDisclosurePack(TENANT, RANGE, { actorUserId: ACTOR, ip: "203.0.113.7" }, NOW);
+    const rows = await prisma.auditLog.findMany({
+      where: { tenantId: TENANT, action: "viewkey.decrypt" },
+      select: { ip: true },
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.ip === "203.0.113.7")).toBe(true);
+  });
+});
+
 describe("disclosure renderers", () => {
   it("renders a CSV appendix with a header and a revealed row", async () => {
     const pack = await buildDisclosurePack(TENANT, RANGE, { actorUserId: ACTOR }, NOW);

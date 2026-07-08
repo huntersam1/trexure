@@ -12,7 +12,15 @@ export type CsvColumn<T> = {
 };
 
 function escapeCell(input: string | number | null | undefined): string {
-  const s = input == null ? "" : String(input);
+  let s = input == null ? "" : String(input);
+  // Formula-injection guard: a cell that leads with =, +, -, @, tab, or CR is
+  // evaluated as a formula by Excel/Sheets (WEBSERVICE/HYPERLINK exfil, legacy
+  // DDE exec). Reports carry user-controlled free-text (counterparty refs,
+  // decrypted memos), so neutralize it with a leading apostrophe before the
+  // RFC-4180 quoting below. Applies to every report (R1–R5) via the shared path.
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\r\n]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

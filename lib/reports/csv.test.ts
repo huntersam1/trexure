@@ -32,6 +32,18 @@ describe("toCsv", () => {
     );
   });
 
+  it("neutralizes formula-injection cells (leading = + - @ tab CR) with an apostrophe", () => {
+    const csv = toCsv(columns, [
+      { name: "=WEBSERVICE(1)", amount: 1, note: "@SUM(A1)" },
+      { name: "-2+3", amount: 2, note: "+cmd" },
+    ]);
+    expect(csv).toBe("Name,Amount,Note\r\n'=WEBSERVICE(1),1,'@SUM(A1)\r\n'-2+3,2,'+cmd");
+  });
+
+  it("neutralizes then still quotes a formula cell that also contains a comma", () => {
+    expect(csvRow(["=1,2"])).toBe(`"'=1,2"`);
+  });
+
   it("renders null/undefined cells as empty strings", () => {
     const csv = toCsv<{ a: string | null; b: undefined }>(
       [
