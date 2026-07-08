@@ -11,6 +11,9 @@ const D = Prisma.Decimal;
  */
 export const DEMO_FX_RATES: Record<string, string> = {
   "USD:PHP": "56.70",
+  // Pool bank claim (P5, #87): XLM off-ramped to PHP. Demo rate (~$0.11/XLM ×
+  // 56.70 PHP/USD ≈ 6.24); rounded for a clean demo. Real anchor quote → #69.
+  "XLM:PHP": "6.24",
 };
 
 /** Quoted FX rate for a corridor as a decimal string, or null if unquoted. */

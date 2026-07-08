@@ -1,11 +1,23 @@
 import "server-only";
 
+import { Keypair } from "@stellar/stellar-sdk";
+
+import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
 import type { PoolDepositInput, PoolWithdrawInput } from "@/lib/validation/pool";
 import { submitDeposit } from "./deposit";
 import { submitWithdraw } from "./withdraw";
 import { parseNote } from "./note";
 import { poolContractId, syncPoolTree } from "./sync";
+
+/**
+ * The server/relayer account that custodies pool withdrawals for the bank claim
+ * path (P5, #87) — the same account that signs pool txs. Derived lazily so a
+ * placeholder secret in a mocked test never forces a strkey decode.
+ */
+export function custodyAddress(): string {
+  return Keypair.fromSecret(env.STELLAR_SOURCE_SECRET).publicKey();
+}
 
 /**
  * Service layer for the shielded-pool rail (P6, #65). Thin glue over the P4 lib
