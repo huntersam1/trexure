@@ -5,6 +5,38 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P2: batch send API + service + payer UI — #84
+
+The payer-side batch flow (epic #80): submit N receivers once → N pool deposits →
+N claimable notes, each persisted as a first-class child `Payment` under a
+`PaymentBatch`. Builds on P1's schema (#83).
+
+- **Service** `lib/pool/batch.ts#createPoolBatch(tenantId, userId, input)` —
+  creates a `PaymentBatch`, then for each row calls `createPoolDeposit`
+  (`lib/pool/service.ts`) to mint a note and persists a child `Payment`
+  (`payoutMethod=POOL_WALLET`, `status=PENDING`, public `poolCommitment`, XLM→XLM
+  corridor, fresh `intentId`). Deposits run **sequentially** so a partial failure
+  leaves a clean per-row audit trail; a throwing row is reported `ok:false` and
+  **successful notes are preserved**. The batch roll-up (`count`/
+  `totalSourceAmount`) is reconciled to the rows that actually landed.
+- **Bearer safety** — only the public commitment is persisted; the note is echoed
+  **once** in the response and never stored (`encryptedNote` stays null, reserved
+  for a later opt-in re-reveal). Everything tenant-scoped via `forTenant()`.
+- **API** `POST /api/pool/batch` — session + CSRF, gated behind `ENABLE_POOL_RAIL`
+  (404 when off), Zod-validated `{ receivers: [{ amount, ref, email? }] }` (1–50
+  rows). Mirrors `/api/pool/deposit`. `email` is captured but unused (#81/#82).
+- **Payer UI** `app/(app)/pool/batch` — a multi-row form (add/remove receivers,
+  amount + label + optional email) reached via a **Batch send** link on the pool
+  page; on submit, a results view lists each receiver's **copy-pasteable claim
+  details** (note + claim URL + amount + pool contract id) with a bold
+  bearer-credential warning, per-row **Copy note** / **Copy claim details**
+  buttons, deposit tx links, and per-row success/failure.
+- **Tests** — route tests (flag-off 404, CSRF 403, happy path 201, empty list &
+  bad row 422) + a DB-backed service test (batch + N children persisted; partial
+  failure preserves successes). Verified **live on testnet**: a 1-receiver batch
+  did a real deposit (tx `4a84b0be…`), minted a note, and persisted the child
+  `Payment` (POOL_WALLET/PENDING). typecheck/lint/build green.
+
 ## Batch payments P1: schema — Receiver persona + PaymentBatch + pool payout fields — #83
 
 Foundation schema for the **batch private payments epic (#80)** — the tables
