@@ -2,9 +2,13 @@ import "server-only";
 import type { JSX } from "react";
 import { notFound } from "next/navigation";
 
+import type { Route } from "next";
+import Link from "next/link";
+
 import { requireSession } from "@/lib/auth/session";
 import { parseDateRange, toDateInput, rangeLabel } from "@/lib/reports/scope";
 import { buildReconciliationStatement } from "@/lib/reports/reconciliation";
+import { Icon } from "@/components/ui/Icon";
 import { ReportControls } from "./ReportControls";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +51,25 @@ export default async function ReportsPage({
       </div>
 
       <ReportControls from={from} to={to} downloadQuery={query} />
+
+      <Link
+        href={`/reports/disclosure?${query}` as Route}
+        className="group flex items-center gap-4 rounded-xl border border-outline-variant bg-surface p-5 hover:border-primary/40"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary-container text-on-primary-container">
+          <Icon name="verified_user" className="text-[22px]" />
+        </span>
+        <span className="flex-1">
+          <span className="block font-geist text-body-lg text-on-surface group-hover:text-primary">
+            Compliance & Audit Disclosure Pack
+          </span>
+          <span className="block text-body-sm text-on-surface-variant">
+            Selective view-key disclosure with on-chain proofs — the package you hand an auditor, the BIR,
+            or AMLC.
+          </span>
+        </span>
+        <Icon name="arrow_forward" className="text-[20px] text-on-surface-variant group-hover:text-primary" />
+      </Link>
 
       <section className="flex flex-col gap-stack-md">
         <div className="flex items-center justify-between">
