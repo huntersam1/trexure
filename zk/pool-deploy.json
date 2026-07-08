@@ -1,12 +1,12 @@
 {
   "network": "testnet",
-  "poolContractId": "CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4",
+  "poolContractId": "CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM",
   "tokenSac": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
   "tokenAsset": "native",
   "depth": 4,
-  "deployLedger": 3483086,
-  "deployTx": "3dc8bf3e99e297f887901bbd212f76719f661404a55f0fca533d98cd32f918f2",
-  "initTx": "2d203656d888b4df84a37e6f45dbe6cb75b58649a2f592f37730992ffad44413",
+  "deployLedger": 3494736,
+  "deployTx": "cbe1aada7c7ee76e3c065bd5e88b60b133a8af0e9744b9df9639018677142850",
+  "initTx": "94b0aeaa753f164721e91b33911e94d727c438edd53a85e1cab6326166ce301f",
   "wasmHash": "e60b7cd300b451c0c24db14e2dfaf577aceffd4c94ad3571bae9a4cc6880eea9",
-  "note": "ShieldedPool (P3, --features pool) deployed + initialized for the P5 demo. depth-4 tree (#74). Demo-grade trusted setup, testnet only."
+  "note": "ShieldedPool (P3, --features pool) redeployed 2026-07-08 — the original depth-4 pool CB5FU3DB… filled to 16/16 leaves (TreeFull, Error #3). depth-4 tree (#74). Demo-grade trusted setup, testnet only."
 }
