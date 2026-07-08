@@ -1,14 +1,44 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { forTenant } from "@/lib/db";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/log";
+import { aesEncrypt } from "@/lib/crypto/aes";
+import { loadViewKey } from "@/lib/crypto/viewkey";
 import { createPoolDeposit } from "@/lib/pool/service";
 import { poolContractId } from "@/lib/pool/sync";
 import type { PoolBatchInput, PoolBatchReceiverInput } from "@/lib/validation/pool";
 import type { Prisma } from "@/lib/generated/prisma/client";
+
+const asBytes = (b: Buffer): Uint8Array<ArrayBuffer> => b as unknown as Uint8Array<ArrayBuffer>;
+
+/**
+ * Shield the receiver/payout details under the tenant view key so the payer can
+ * selectively re-reveal them later (P6 decrypt — the accountant story), reusing
+ * the exact canonical payload shape the enclave/decrypt route reads
+ * (sender/recipient/asset/amount). Returns null when the tenant has no view key.
+ */
+async function shieldDisbursement(
+  viewKey: Buffer | null,
+  tenantName: string,
+  receiver: PoolBatchReceiverInput,
+  intentId: string,
+): Promise<{ encryptedPayload: Uint8Array<ArrayBuffer>; payloadNonce: Uint8Array<ArrayBuffer>; proofHash: string } | null> {
+  if (!viewKey) return null;
+  const payload = {
+    sender: tenantName,
+    recipient: receiver.ref,
+    asset: "XLM",
+    amount: String(receiver.amount),
+    targetCurrency: "XLM",
+    intentId,
+  };
+  const { ciphertext, nonce } = aesEncrypt(Buffer.from(JSON.stringify(payload), "utf8"), viewKey);
+  const proofHash = "0x" + createHash("sha256").update(ciphertext).digest("hex");
+  return { encryptedPayload: asBytes(ciphertext), payloadNonce: asBytes(nonce), proofHash };
+}
 
 /**
  * Batch send service (P2, #84 — part of the batch private payments epic #80).
@@ -77,6 +107,17 @@ export async function createPoolBatch(
   const contractId = poolContractId();
   const claimUrl = `${env.APP_URL.replace(/\/$/, "")}/claim`;
 
+  // Tenant name + view key (for shielding receiver details) resolved once. The
+  // view key is optional — a tenant without one simply gets unshielded rows.
+  const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { name: true } });
+  const tenantName = tenant?.name ?? "";
+  let viewKey: Buffer | null = null;
+  try {
+    viewKey = await loadViewKey(tenantId);
+  } catch {
+    viewKey = null;
+  }
+
   // Create the grouping batch up-front so child Payments can FK to it; counts
   // are reconciled to the successful rows after processing.
   const batch = await db.paymentBatch.create({
@@ -96,6 +137,7 @@ export async function createPoolBatch(
     try {
       const deposit = await createPoolDeposit({ amount: receiver.amount });
       const intentId = newIntentId();
+      const shielded = await shieldDisbursement(viewKey, tenantName, receiver, intentId);
 
       const data = {
         batchId: batch.id,
@@ -110,6 +152,9 @@ export async function createPoolBatch(
         recipientRef: receiver.ref,
         shielded: true,
         poolCommitment: deposit.commitment,
+        ...(shielded
+          ? { encryptedPayload: shielded.encryptedPayload, payloadNonce: shielded.payloadNonce, proofHash: shielded.proofHash }
+          : {}),
       } as unknown as Prisma.PaymentUncheckedCreateInput;
 
       const payment = await db.payment.create({ data });

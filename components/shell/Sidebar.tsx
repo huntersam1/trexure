@@ -75,15 +75,29 @@ export function Sidebar({
         {poolRailEnabled && (
           <Link
             href={"/pool" as Route}
-            aria-current={isActive("/pool") ? "page" : undefined}
+            aria-current={pathname === "/pool" ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
-              isActive("/pool")
+              pathname === "/pool"
                 ? "bg-primary-container text-primary font-bold"
                 : "text-on-surface-variant hover:bg-surface-container-low"
             }`}
           >
             <Icon name="shield_lock" className="text-[20px]" />
             Private Transfer
+          </Link>
+        )}
+        {poolRailEnabled && (
+          <Link
+            href={"/pool/batches" as Route}
+            aria-current={pathname.startsWith("/pool/batch") ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
+              pathname.startsWith("/pool/batch")
+                ? "bg-primary-container text-primary font-bold"
+                : "text-on-surface-variant hover:bg-surface-container-low"
+            }`}
+          >
+            <Icon name="groups" className="text-[20px]" />
+            Batch payments
           </Link>
         )}
         {role === "ADMIN" && (
