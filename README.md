@@ -380,6 +380,35 @@ Feature flags & defaults: `ENABLE_NEW_PAYMENTS=true`, `ZK_PROVING=live`, `SEED_O
    pnpm demo:record      # scripted Playwright recording -> mp4
    ```
 
+### Private-transfer & batch-claim demo (shielded pool)
+
+The private on-chain rail and the freelancer **claim** flow are feature-flagged —
+set `ENABLE_POOL_RAIL=true` in `.env` (default off; when off, `/pool*` and
+`/claim*` return 404).
+
+- **Payer** (tenant/admin session): shield funds and get **claimable notes**
+  - `/pool` — single deposit → one `trexure-note-v1-…` note (or the one-click demo).
+  - `/pool/batch` — pay many receivers at once → one note per receiver.
+  - `/pool/batches` — batch overview → per-payment timeline, legs, view-key decrypt, receipt (+ PDF).
+- **Receiver** (separate persona, own login at `/claim` → `/claim/login`): paste a
+  note and claim to a **Stellar wallet** (settles on-chain) or a **PH bank account**
+  (mock PDAX off-ramp → reconciles to a receipt). A note is a **bearer credential** —
+  any holder can claim it, so deliver it privately.
+
+**Demo claimant accounts** (local dev — re-create on a fresh DB via
+`prisma.receiver.upsert` with an argon2id `passwordHash`):
+
+| Email | Password |
+|---|---|
+| `alice@claim.test` | `trexure-demo-2026` |
+| `bob@claim.test` | `trexure-demo-2026` |
+
+> **Pool capacity:** the demo `ShieldedPool` is a **depth-4 Merkle tree — 16
+> deposits max**. When full, deposits revert with `Error(Contract, #3)`
+> (`TreeFull`); redeploy a fresh pool with `stellar contract deploy` +
+> `node zk/scripts/pool-init.mjs`, then update `POOL_CONTRACT_ID` (`.env` /
+> `lib/env.ts`) and `zk/pool-deploy.json`.
+
 ## Deployment
 
 Per `railway.json` / `railway.web.json` / `railway.worker.json` / `nixpacks.toml`:

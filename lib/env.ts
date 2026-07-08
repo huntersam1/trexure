@@ -67,7 +67,7 @@ const EnvSchema = z.object({
   ENABLE_POOL_RAIL: boolFromString.default(false),
   // Deployed ShieldedPool contract (P5, #64). Defaults to the demo deployment
   // recorded in zk/pool-deploy.json; override per environment.
-  POOL_CONTRACT_ID: z.string().min(1).default("CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4"),
+  POOL_CONTRACT_ID: z.string().min(1).default("CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM"),
 
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
