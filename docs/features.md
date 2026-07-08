@@ -5,6 +5,45 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Batch payments P3: receiver (freelancer) auth + interface + claim form — #85
+
+The receiver-facing side of the batch epic (#80): a **separate login + interface**
+where a freelancer claims their pay, fully isolated from the tenant `(app)` shell.
+This phase ships the persona's auth, layout, and validated claim **form**; the
+actual payout execution is P4 (wallet) / P5 (bank).
+
+- **Receiver auth** (`lib/receiver/**`) — a parallel to `lib/auth/**` for the P1
+  global `Receiver` persona: argon2id (reusing `lib/auth/password`), a distinct
+  **`__Host-trexure_receiver_session`** cookie + `ReceiverSession` table with the
+  same sliding/absolute TTL policy, `registerReceiver`/`verifyReceiverCredentials`
+  (email login; duplicate email → 409). CSRF reuses the shared double-submit
+  token. Cookie name lives in a dependency-free `lib/receiver/cookie.ts` so the
+  edge middleware can import it.
+- **Isolation** — `middleware.ts` gains a receiver-area branch: `/claim*` pages
+  require the **receiver** session (a tenant `User` session grants nothing → a
+  tenant user is bounced to `/claim/login`), and a receiver session grants
+  nothing in the tenant app (bounced to `/login`). `/api/claim` defers to its
+  handler's `requireReceiver`. Proven by `middleware.test.ts` (both directions).
+- **Interface** `app/(receiver)/**` — a distinct minimal shell (NOT the sidebar):
+  `/claim/login` (combined log-in / create-account form, one server action
+  branching on a hidden `intent`) and `/claim` (the claim form, receiver-gated,
+  with a logout button). Both gated by `ENABLE_POOL_RAIL`.
+- **Claim form + schema** — note (validated for `NOTE_PREFIX` **and** round-trip
+  `parseNote`) + a **discriminated payout choice** (`claimSchema` in
+  `lib/validation/pool.ts`): **wallet** (`StrKey` Stellar `G…`) or **bank**
+  (bankCode / accountName / accountNumber, mock PDAX until #69). Inline client
+  validation; the note is a bearer credential (never logged).
+- **P4/P5 boundary** — `POST /api/claim` does auth + CSRF + validation, then
+  dispatches to `lib/receiver/claim.ts` stubs that return **501** with a clear
+  "wired in P4 (#86)/P5 (#87)" message (the form surfaces it as an informational
+  notice). P4/P5 fill `claimToWallet`/`claimToBank`.
+- **Tests** — `claim.test.ts` (schema: valid wallet/bank, bad prefix/length,
+  non-Stellar address, missing bank field, unknown method), `route.test.ts`
+  (flag-off 404, no-receiver 401, CSRF 403, 422, 200 dispatch, 501 boundary),
+  middleware isolation (6 cases). Verified **live** (real DB + argon2 + MiMC):
+  register → login (correct/wrong) → duplicate 409 → both claim paths hit the
+  501 boundary. typecheck/lint/build green.
+
 ## Batch payments P2: batch send API + service + payer UI — #84
 
 The payer-side batch flow (epic #80): submit N receivers once → N pool deposits →

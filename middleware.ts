@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { RECEIVER_SESSION_COOKIE_NAME } from "@/lib/receiver/cookie";
 
 // Public = no session required. Webhooks are HMAC-authed in their handlers.
 const PUBLIC_EXACT = new Set(["/login", "/signup", "/api/auth/login", "/api/auth/signup", "/api/health"]);
@@ -7,6 +8,21 @@ function isPublic(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;
   if (pathname.startsWith("/api/webhooks/")) return true;
   return false;
+}
+
+// Receiver (freelancer) area (P3, #85) — gated by the RECEIVER session, NOT the
+// tenant session, so the two personas stay isolated. `/api/claim` enforces
+// receiver auth in its handler (requireReceiver), so middleware just lets it
+// reach the handler rather than applying the tenant gate.
+const RECEIVER_PUBLIC_EXACT = new Set(["/claim/login", "/claim/register"]);
+
+function isReceiverArea(pathname: string): boolean {
+  return (
+    pathname === "/claim" ||
+    pathname.startsWith("/claim/") ||
+    pathname === "/api/claim" ||
+    pathname.startsWith("/api/claim/")
+  );
 }
 
 function makeNonce(): string {
@@ -45,8 +61,29 @@ export function middleware(req: NextRequest): NextResponse {
   const nonce = makeNonce();
   const cookieName = process.env.SESSION_COOKIE_NAME || "__Host-trexure_session";
   const hasSession = Boolean(req.cookies.get(cookieName)?.value);
+  const hasReceiverSession = Boolean(req.cookies.get(RECEIVER_SESSION_COOKIE_NAME)?.value);
 
   let res: NextResponse;
+
+  if (isReceiverArea(pathname)) {
+    // Receiver-gated area. API paths defer to the handler's requireReceiver;
+    // the login/register pages are public; every other page needs the receiver
+    // session (a tenant `User` session grants nothing here).
+    const needsReceiver =
+      !pathname.startsWith("/api/") && !RECEIVER_PUBLIC_EXACT.has(pathname);
+    if (needsReceiver && !hasReceiverSession) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/claim/login";
+      url.searchParams.set("next", pathname);
+      res = NextResponse.redirect(url);
+    } else {
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-nonce", nonce);
+      res = NextResponse.next({ request: { headers: requestHeaders } });
+    }
+    applySecurityHeaders(res, nonce);
+    return res;
+  }
 
   if (!isPublic(pathname) && !hasSession) {
     // Presence gate only — full identity/role validation happens in route handlers
