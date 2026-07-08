@@ -18,9 +18,11 @@ function Line({ label, value }: { label: string; value: string }): JSX.Element {
 // "pool-wallet") with no fx/fees/slippage/fiat blocks — pool disbursements are
 // regular Payments, so they also render here at /payments/[id]. Accept those
 // blocks as optional and hide their rows when absent (fiat receipts unchanged).
-type DisplayReceipt = Omit<Receipt, "fx" | "fees" | "slippage" | "fiat"> &
+type DisplayReceipt = Omit<Receipt, "fx" | "fees" | "slippage" | "fiat" | "onchain"> &
   Partial<Pick<Receipt, "fx" | "fees" | "slippage" | "fiat">> & {
-    onchain: Receipt["onchain"] & { nullifierHash?: string };
+    // The on-chain-only pool receipt carries `nullifierHash` and no `proofHash`,
+    // so both are optional here (the fiat receipt still supplies `proofHash`).
+    onchain: Omit<Receipt["onchain"], "proofHash"> & { proofHash?: string; nullifierHash?: string };
   };
 
 export function ReceiptPanel({ receipt, onExport }: { receipt: DisplayReceipt; onExport?: () => void }): JSX.Element {
