@@ -5,6 +5,43 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reporting R3: Disbursement / Payroll Register — #102 (epic #98)
+
+The register a finance/HR team keeps for batch payroll (#80): who was paid, how
+much, by which rail, and — the actionable bit — **whether each freelancer has
+claimed**. Reuses R1's `lib/reports/**` foundation.
+
+- **The register** (`lib/reports/payroll.ts`) — `buildPayrollRegister(tenantId,
+  { batchId? | range? })`, tenant-scoped by an explicit `tenantId` filter. Scoped
+  to **one `PaymentBatch`** (from the batch UI) or a **date range across batches**
+  (from `/reports`, on `PaymentBatch.createdAt`). One row per child `Payment`:
+  receiver (`recipientRef`), amount, `payoutMethod` (wallet/bank), status, **claim
+  state** (SETTLED→`claimed`, FAILED→`failed`, else→`unclaimed`), claim
+  destination (bank ref for POOL_BANK; "on-chain wallet" for a settled wallet
+  claim — the address lives in the withdraw tx), deposit commitment, withdraw tx,
+  and receipt id (from `Receipt.json.id`, matching R1/R2). **Roll-up** per batch +
+  overall: claimed / unclaimed / failed counts and per-symbol totals (all +
+  claimed-only). `payrollRegisterToCsv` / `payrollRegisterToPdf` render it.
+- **`/reports/payroll` UI** — **ADMIN-only** (`role !== "ADMIN"` → `notFound()`),
+  batch-scoped (`?batchId=`) or date-range mode, with a stat row
+  (disbursements / claimed / unclaimed / failed), a disbursements table, and CSV /
+  PDF download. Discoverable via a card on `/reports` **and** an ADMIN-only
+  "Payroll register" link on the batch detail page (`/pool/batches/[id]`).
+- **API** `GET /api/reports/payroll?batchId&from&to&format=csv|pdf` —
+  `requireAdmin` (403/401), tenant-scoped, audit-logs every generation
+  (`recordAudit({ action: "report.generate", metadata: { report: "payroll" } })`),
+  streams the file as an attachment. A `batchId` scope ignores the date range.
+
+**Verification:** 11 tests — a DB-backed register test (a batch with mixed
+statuses → correct rows / destinations / receipt ids + claimed/unclaimed/failed
+roll-up + per-symbol totals; out-of-range + cross-tenant exclusion; a
+cross-tenant batch id returns empty), a CSV snapshot, and route
+RBAC/scope/audit/streaming tests. `pnpm typecheck` / `lint` / `build` green
+(`/reports/payroll`, `/api/reports/payroll` registered). Live-verified end-to-end
+against the dev DB: a 3-receiver batch (2 claimed / 1 unclaimed) with wallet +
+bank destinations, correct totals, and a valid PDF + CSV; range-mode across
+batches confirmed.
+
 ## Reporting R2: Compliance & Audit Disclosure Pack — #101 (epic #98)
 
 The report **only Trexure can produce**: a period (and optionally

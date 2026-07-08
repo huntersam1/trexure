@@ -1,5 +1,6 @@
 import "server-only";
 import type { JSX } from "react";
+import type { Route } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -42,6 +43,15 @@ export default async function PoolBatchDetailPage({
         <p className="mt-1 text-body-sm text-on-surface-variant">
           {new Date(batch.createdAt).toLocaleString()} · by {batch.createdByUsername}
         </p>
+        {user.role === "ADMIN" && (
+          <Link
+            href={`/reports/payroll?batchId=${batch.id}` as Route}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-outline-variant px-4 py-2 text-body-sm font-medium text-on-surface hover:border-primary/40 hover:text-primary"
+          >
+            <Icon name="groups" className="text-[18px]" />
+            Payroll register
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
