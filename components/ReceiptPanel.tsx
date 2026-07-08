@@ -14,7 +14,18 @@ function Line({ label, value }: { label: string; value: string }): JSX.Element {
   );
 }
 
-export function ReceiptPanel({ receipt, onExport }: { receipt: Receipt; onExport?: () => void }): JSX.Element {
+// A settled pool **wallet** claim emits an on-chain-only receipt (rail
+// "pool-wallet") with no fx/fees/slippage/fiat blocks — pool disbursements are
+// regular Payments, so they also render here at /payments/[id]. Accept those
+// blocks as optional and hide their rows when absent (fiat receipts unchanged).
+type DisplayReceipt = Omit<Receipt, "fx" | "fees" | "slippage" | "fiat" | "onchain"> &
+  Partial<Pick<Receipt, "fx" | "fees" | "slippage" | "fiat">> & {
+    // The on-chain-only pool receipt carries `nullifierHash` and no `proofHash`,
+    // so both are optional here (the fiat receipt still supplies `proofHash`).
+    onchain: Omit<Receipt["onchain"], "proofHash"> & { proofHash?: string; nullifierHash?: string };
+  };
+
+export function ReceiptPanel({ receipt, onExport }: { receipt: DisplayReceipt; onExport?: () => void }): JSX.Element {
   const [showJson, setShowJson] = useState(false);
   const json = JSON.stringify(receipt, null, 2);
 
@@ -39,11 +50,11 @@ export function ReceiptPanel({ receipt, onExport }: { receipt: Receipt; onExport
         <div className="px-8 py-6">
           <Line label="Corridor" value={`${receipt.corridor.from} → ${receipt.corridor.to}`} />
           <Line label="Source" value={`${receipt.amounts.source.value} ${receipt.amounts.source.currency}`} />
-          <Line label="FX Rate" value={`${receipt.fx.rate}`} />
-          <Line label="Network Fee" value={receipt.fees.network} />
-          <Line label="Anchor Fee" value={receipt.fees.anchor} />
-          <Line label="Platform Fee" value={receipt.fees.platform} />
-          <Line label="Slippage" value={receipt.slippage} />
+          {receipt.fx && <Line label="FX Rate" value={`${receipt.fx.rate}`} />}
+          {receipt.fees && <Line label="Network Fee" value={receipt.fees.network} />}
+          {receipt.fees && <Line label="Anchor Fee" value={receipt.fees.anchor} />}
+          {receipt.fees && <Line label="Platform Fee" value={receipt.fees.platform} />}
+          {receipt.slippage != null && <Line label="Slippage" value={receipt.slippage} />}
 
           <div className="mt-4 flex items-center justify-between">
             <span className="text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/60">Total Settled</span>
@@ -55,8 +66,17 @@ export function ReceiptPanel({ receipt, onExport }: { receipt: Receipt; onExport
           <div className="mt-6 bg-surface-container-low rounded-lg border border-outline-variant p-4">
             <p className="text-label-mono uppercase tracking-widest font-bold text-primary/70">Transaction ID</p>
             <p className="mt-1 font-mono text-code-block break-all text-on-surface/80">{receipt.onchain.txHash}</p>
-            <p className="mt-2 text-label-mono uppercase tracking-widest font-bold text-primary/70">Bank Reference</p>
-            <p className="mt-1 font-mono text-code-block break-all text-on-surface/80">{receipt.fiat.bankRef}</p>
+            {receipt.fiat?.bankRef ? (
+              <>
+                <p className="mt-2 text-label-mono uppercase tracking-widest font-bold text-primary/70">Bank Reference</p>
+                <p className="mt-1 font-mono text-code-block break-all text-on-surface/80">{receipt.fiat.bankRef}</p>
+              </>
+            ) : receipt.onchain.nullifierHash ? (
+              <>
+                <p className="mt-2 text-label-mono uppercase tracking-widest font-bold text-primary/70">Nullifier</p>
+                <p className="mt-1 font-mono text-code-block break-all text-on-surface/80">{receipt.onchain.nullifierHash}</p>
+              </>
+            ) : null}
           </div>
 
           <div className="mt-6 flex items-center gap-3">
