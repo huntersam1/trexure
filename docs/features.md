@@ -5,6 +5,49 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Reporting R4: Proof-of-Payment Attestation — #103 (epic #98)
+
+A single shareable, tamper-evident document a company sends a vendor (or keeps
+for its records) as evidence that **one specific payment happened and settled** —
+without exposing the rest of the ledger. "Signed proof of payment", not the full
+R2 disclosure pack. Reuses R1's `lib/reports/**` foundation.
+
+- **The attestation** (`lib/reports/attestation.ts`) — `buildAttestation(tenantId,
+  paymentId)`, tenant-isolated via `forTenant`. Only issued for a **SETTLED**
+  payment the tenant owns (else `AppError` 409 / 404). Assembled entirely from the
+  already-stored `Receipt.json` + settlement legs (both the fiat `buildReceipt` and
+  on-chain-only `pool-wallet` shapes), so it never re-derives figures: date,
+  amounts/corridor/FX, on-chain tx + `proofHash` (with stellar.expert link),
+  settlement legs, bank ref, receipt id.
+- **Verifiability, two ways** — (1) **third-party**: the on-chain tx + proofHash a
+  vendor can independently confirm on-chain; (2) **issuer tamper-evidence**: an
+  **HMAC-SHA256 over the immutable payment facts** (excludes `issuedAt` so the
+  signature is stable across re-downloads), keyed by a signing key **derived from
+  `MASTER_ENCRYPTION_KEY`** (domain-separated — the raw master key is never used to
+  sign; no new env var). `verifyAttestation()` recomputes and constant-time
+  compares. A public *asymmetric* signature is intentionally out of scope for this
+  release (noted on the document).
+- **Shareable** — a self-contained **PDF** (`attestationToPdf` via the R1
+  `renderReportPdf`) plus a machine-readable **JSON** (`attestationToJson`) a
+  verifier can script against.
+- **API** `GET /api/reports/attestation?paymentId&format=pdf|json` —
+  `requireSession` (**ADMIN or MEMBER** — it's the tenant's own payment),
+  tenant-isolated, audit-logged (`report.generate`, `report:attestation`), streams
+  the file. Only the one payment is exposed — no ledger leakage.
+- **UI** — a "Proof of payment (PDF)" + JSON download on the **payment detail
+  page** for settled payments, plus a card on `/reports` linking to settled
+  payments.
+
+**Verification:** 12 tests — a DB-backed builder test (fiat + on-chain-only
+pool-wallet attestation content matches the stored receipt/legs; **HMAC
+sign/verify roundtrip + tamper detection**; `issuedAt` not signed;
+non-settled → 409, cross-tenant/unknown → 404; JSON + `%PDF` render) and route
+auth/validation/streaming/audit tests. `pnpm typecheck` / `lint` / `build` green
+(`/api/reports/attestation` registered). Live-verified end-to-end against the dev
+DB: a settled fiat payment → attestation with correct amounts + on-chain proof,
+signature verifies, a tampered amount fails, a re-issued `issuedAt` still
+verifies, valid PDF + JSON, and 409/404 refusals.
+
 ## Reporting R3: Disbursement / Payroll Register — #102 (epic #98)
 
 The register a finance/HR team keeps for batch payroll (#80): who was paid, how

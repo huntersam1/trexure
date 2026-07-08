@@ -8,6 +8,7 @@ import { PaymentLifecycle } from "@/components/lifecycle/PaymentLifecycle";
 import { DemoReplayController } from "@/components/demo/DemoReplayController";
 import { RetryReconcileButton } from "@/components/payments/RetryReconcileButton";
 import { VerifyProofButton } from "@/components/zk/VerifyProofButton";
+import { Icon } from "@/components/ui/Icon";
 import { SAMPLE_INTENT_ID } from "@/lib/demo/replay";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,24 @@ export default async function PaymentDetailPage({
         </div>
       )}
       {payment.shielded && <VerifyProofButton paymentId={payment.id} csrfToken={csrfToken} />}
+      {payment.status === "SETTLED" && (
+        <div className="flex justify-end gap-2">
+          <a
+            href={`/api/reports/attestation?paymentId=${payment.id}&format=pdf`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant px-4 py-2 text-body-sm font-medium text-on-surface hover:border-primary/40 hover:text-primary"
+          >
+            <Icon name="verified" className="text-[18px]" />
+            Proof of payment (PDF)
+          </a>
+          <a
+            href={`/api/reports/attestation?paymentId=${payment.id}&format=json`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant px-4 py-2 text-body-sm font-medium text-on-surface hover:border-primary/40 hover:text-primary"
+          >
+            <Icon name="data_object" className="text-[18px]" />
+            JSON
+          </a>
+        </div>
+      )}
       <PaymentLifecycle payment={payment} initialReceipt={receipt} csrfToken={csrfToken} />
     </div>
   );
