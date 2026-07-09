@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { JSX } from "react";
 import type { Route } from "next";
 import { Icon } from "@/components/ui/Icon";
+import { Logo } from "@/components/ui/Logo";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: "dashboard" },
@@ -18,30 +19,39 @@ export function Sidebar({
   role,
   newPaymentsEnabled,
   poolRailEnabled = false,
+  onNavigate,
+  onClose,
+  onLogout,
 }: {
   username: string;
   role: "ADMIN" | "MEMBER";
   newPaymentsEnabled: boolean;
   poolRailEnabled?: boolean;
+  /** Called when a nav link is followed — used to close the mobile drawer. */
+  onNavigate?: () => void;
+  /** When provided, renders a close (X) button in the header (mobile drawer). */
+  onClose?: () => void;
+  /** Server action wired to the footer logout form. Renders logout when set. */
+  onLogout?: () => void | Promise<void>;
 }): JSX.Element {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <aside className="w-64 shrink-0 bg-surface border-r border-outline-variant flex flex-col">
+    <aside className="w-64 h-full shrink-0 bg-surface border-r border-outline-variant flex flex-col">
       <div className="px-6 py-6 border-b border-outline-variant">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-on-surface p-1.5 shadow-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.jpg"
-              alt=""
-              className="h-full w-full object-contain brightness-0 invert"
-            />
-          </span>
-          <span className="font-geist text-headline-md font-[800] tracking-tight text-on-surface">
-            Trexure
-          </span>
+        <div className="flex items-center justify-between gap-3">
+          <Logo />
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close menu"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface md:hidden"
+            >
+              <Icon name="close" className="text-[22px]" />
+            </button>
+          )}
         </div>
         <p className="mt-1.5 text-label-mono uppercase tracking-widest font-bold text-primary/70">Treasury Ops</p>
       </div>
@@ -52,6 +62,7 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href as Route}
+              onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                 active
@@ -75,6 +86,7 @@ export function Sidebar({
         {poolRailEnabled && (
           <Link
             href={"/pool" as Route}
+            onClick={onNavigate}
             aria-current={pathname === "/pool" ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
               pathname === "/pool"
@@ -89,6 +101,7 @@ export function Sidebar({
         {poolRailEnabled && (
           <Link
             href={"/pool/batches" as Route}
+            onClick={onNavigate}
             aria-current={pathname.startsWith("/pool/batch") ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
               pathname.startsWith("/pool/batch")
@@ -103,6 +116,7 @@ export function Sidebar({
         {role === "ADMIN" && (
           <Link
             href={"/reports" as Route}
+            onClick={onNavigate}
             aria-current={isActive("/reports") ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
               isActive("/reports")
@@ -117,6 +131,7 @@ export function Sidebar({
         {role === "ADMIN" && (
           <Link
             href={"/admin" as Route}
+            onClick={onNavigate}
             aria-current={isActive("/admin") ? "page" : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
               isActive("/admin")
@@ -129,9 +144,23 @@ export function Sidebar({
           </Link>
         )}
       </nav>
-      <div className="px-4 py-4 border-t border-outline-variant">
-        <p className="text-body-sm font-medium text-on-surface truncate">{username}</p>
-        <p className="text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/60">{role}</p>
+      <div className="px-4 py-4 border-t border-outline-variant flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-body-sm font-medium text-on-surface truncate">{username}</p>
+          <p className="text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/60">{role}</p>
+        </div>
+        {onLogout && (
+          <form action={onLogout}>
+            <button
+              type="submit"
+              aria-label="Log out"
+              title="Log out"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              <Icon name="logout" className="text-[20px]" />
+            </button>
+          </form>
+        )}
       </div>
     </aside>
   );
