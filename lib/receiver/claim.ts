@@ -9,6 +9,7 @@ import { triggerMockPayout } from "@/lib/anchor/mock";
 import { tryReconcile } from "@/lib/reconcile/matcher";
 import { quoteTargetAmount } from "@/lib/fx";
 import { buildPoolWalletReceipt, type PoolReceipt, type Receipt } from "@/lib/reconcile/receipt";
+import { markNotificationsClaimedForPayment } from "@/lib/receiver/notifications";
 import { logger } from "@/lib/log";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import type { ClaimInput, ClaimBankPayout } from "@/lib/validation/pool";
@@ -40,10 +41,20 @@ export async function submitClaim(receiverId: string, input: ClaimInput): Promis
   // Belt-and-suspenders: the schema already validated round-trip parseability.
   parseNote(input.note);
 
-  if (input.payout.method === "wallet") {
-    return claimToWallet(receiverId, input.note, input.payout.address);
+  const result =
+    input.payout.method === "wallet"
+      ? await claimToWallet(receiverId, input.note, input.payout.address)
+      : await claimToBank(receiverId, input.note, input.payout);
+
+  // #82: a successful claim clears any in-app notification for this disbursement
+  // (unread badge drops, inbox shows "claimed"). Best-effort — never fail an
+  // already-settled claim on a notification bookkeeping error.
+  if (result.paymentId) {
+    await markNotificationsClaimedForPayment(result.paymentId).catch((err: unknown) =>
+      logger.warn({ err, paymentId: result.paymentId }, "failed to clear claim notifications"),
+    );
   }
-  return claimToBank(receiverId, input.note, input.payout);
+  return result;
 }
 
 /**

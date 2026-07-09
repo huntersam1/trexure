@@ -131,6 +131,16 @@ describe("wallet claim (P4)", () => {
     expect(receiptRow).not.toBeNull();
   });
 
+  it("clears an in-app claim notification for the disbursement on success (#82)", async () => {
+    await prisma.notification.create({ data: { receiverId, paymentId, type: "CLAIM" } });
+
+    await submitClaim(receiverId, { note: noteString, payout: { method: "wallet", address: G } });
+
+    const notif = await prisma.notification.findFirstOrThrow({ where: { paymentId } });
+    expect(notif.claimedAt).not.toBeNull();
+    expect(notif.readAt).not.toBeNull();
+  });
+
   it("rejects a double-claim (409) without withdrawing again", async () => {
     await submitClaim(receiverId, { note: noteString, payout: { method: "wallet", address: G } });
     expect(createPoolWithdraw).toHaveBeenCalledTimes(1);

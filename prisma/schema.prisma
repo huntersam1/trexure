@@ -74,13 +74,14 @@ model User {
 // tenant app shell and the receiver claim interface never share a session.
 // Auth logic (login/session helpers, layout) lands in P3; this is the model.
 model Receiver {
-  id           String            @id @default(cuid())
-  email        String            @unique // login identity; matched to batch rows
-  passwordHash String // argon2id; NEVER plaintext
-  sessions     ReceiverSession[]
-  payments     Payment[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  email         String            @unique // login identity; matched to batch rows
+  passwordHash  String // argon2id; NEVER plaintext
+  sessions      ReceiverSession[]
+  payments      Payment[]
+  notifications Notification[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 }
 
 model ReceiverSession {
@@ -167,6 +168,7 @@ model Payment {
   noteNonce         Bytes?
   legs              PaymentLeg[]
   receipt           Receipt?
+  notifications     Notification[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -174,6 +176,30 @@ model Payment {
   @@index([tenantId, createdAt])
   @@index([batchId])
   @@index([receiverId])
+}
+
+// In-app claim notification (#82, follow-up to batch epic #80). When a batch
+// row's email matches an existing global Receiver account, the sender surfaces
+// the incoming disbursement in that receiver's inbox instead of relying on an
+// out-of-band note. NOT tenant-scoped (mirrors Receiver/ReceiverSession — it
+// belongs to the global receiver persona, and the payer may be any tenant), so
+// it is reached via plain `prisma`, never `forTenant`. References the
+// disbursement only — never the bearer note (which is never persisted).
+model Notification {
+  id         String    @id @default(cuid())
+  receiverId String
+  receiver   Receiver  @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+  paymentId  String
+  payment    Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  type       String    @default("CLAIM")
+  readAt     DateTime? // null = unread
+  claimedAt  DateTime? // set when the referenced payment is claimed (clears it)
+  createdAt  DateTime  @default(now())
+
+  // One notification per receiver per disbursement — makes send-time creation
+  // idempotent on batch retry.
+  @@unique([receiverId, paymentId])
+  @@index([receiverId, readAt])
 }
 
 model PaymentLeg {

@@ -2,11 +2,12 @@ import "server-only";
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { forTenant } from "@/lib/db";
+import { forTenant, prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/log";
 import { aesEncrypt } from "@/lib/crypto/aes";
 import { loadViewKey } from "@/lib/crypto/viewkey";
+import { createClaimNotification } from "@/lib/receiver/notifications";
 import { createPoolDeposit } from "@/lib/pool/service";
 import { poolContractId } from "@/lib/pool/sync";
 import type { PoolBatchInput, PoolBatchReceiverInput } from "@/lib/validation/pool";
@@ -68,6 +69,10 @@ export type BatchReceiverSuccess = {
   claimUrl: string;
   poolContractId: string;
   deposit: { txHash: string; explorerUrl: string };
+  // #82 routing: true when the receiver's email matched an existing Trexure
+  // account and an in-app claim notification was created. An off-platform
+  // receiver (no match) gets `false` here — email delivery is the #81 follow-up.
+  notifiedInApp: boolean;
 };
 
 export type BatchReceiverFailure = {
@@ -92,6 +97,29 @@ export type PoolBatchResult = {
 
 const errText = (e: unknown): string =>
   e instanceof Error ? e.message : "Deposit failed";
+
+/**
+ * Match a batch row's email to an existing Receiver account and, if found,
+ * create the in-app claim notification (#82). Emails are matched normalized to
+ * lowercase (receiver auth stores them lowercased). Returns whether an in-app
+ * notification was created. Never throws — a failure here is logged and treated
+ * as "not notified" so the disbursement itself still succeeds.
+ */
+async function notifyOnPlatformReceiver(email: string | null, paymentId: string): Promise<boolean> {
+  if (!email) return false;
+  try {
+    const receiver = await prisma.receiver.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true },
+    });
+    if (!receiver) return false;
+    await createClaimNotification(receiver.id, paymentId);
+    return true;
+  } catch (err) {
+    logger.warn({ err, paymentId }, "in-app claim notification failed");
+    return false;
+  }
+}
 
 /**
  * Run one batch of private disbursements for `tenantId`, created by `createdByUserId`.
@@ -159,6 +187,12 @@ export async function createPoolBatch(
 
       const payment = await db.payment.create({ data });
 
+      // #82: if this receiver's email matches an existing Trexure account,
+      // surface the disbursement in their in-app inbox (on-platform routing).
+      // Off-platform receivers fall through to email (#81). Never let a
+      // notification hiccup fail an already-persisted disbursement.
+      const notifiedInApp = await notifyOnPlatformReceiver(email, payment.id);
+
       successCount += 1;
       successTotal += receiver.amount;
       results.push({
@@ -173,6 +207,7 @@ export async function createPoolBatch(
         claimUrl,
         poolContractId: contractId,
         deposit: { txHash: deposit.txHash, explorerUrl: deposit.explorerUrl },
+        notifiedInApp,
       });
     } catch (err) {
       logger.error({ err, ref: receiver.ref, batchId: batch.id }, "batch disbursement failed");
