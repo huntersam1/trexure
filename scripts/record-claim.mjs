@@ -16,7 +16,10 @@ const OUT_FILE = path.resolve(process.argv[2] || "docs/demo/trexure-claim.mp4");
 const EMAIL = "alice@claim.test";
 const PASSWORD = "trexure-demo-2026";
 
-const note = JSON.parse(fs.readFileSync("docs/demo/.batch-notes.json", "utf8")).notes[0];
+// A note can only be claimed once (its nullifier is spent), so allow picking a
+// specific unclaimed note from the batch via NOTE_INDEX (default 0).
+const NOTE_INDEX = Number(process.env.NOTE_INDEX ?? 0);
+const note = JSON.parse(fs.readFileSync("docs/demo/.batch-notes.json", "utf8")).notes[NOTE_INDEX];
 const recipient = fs.readFileSync("docs/demo/.claim-recipient.txt", "utf8").trim();
 
 const rawDir = fs.mkdtempSync(path.join(os.tmpdir(), "trexure-claim-"));
@@ -24,8 +27,8 @@ const pause = (page, ms) => page.waitForTimeout(ms);
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
-  viewport: { width: 1366, height: 800 },
-  recordVideo: { dir: rawDir, size: { width: 1366, height: 800 } },
+  viewport: { width: 1920, height: 1080 },
+  recordVideo: { dir: rawDir, size: { width: 1920, height: 1080 } },
 });
 const page = await context.newPage();
 
@@ -51,18 +54,18 @@ try {
   await page.getByRole("button", { name: "Claim my payment" }).click();
   const txLink = page.getByRole("link", { name: /View withdraw transaction/i });
   await txLink.waitFor({ timeout: 150000 });
-  await pause(page, 3500);
 
+  // --- Settlement success (in-app; self-contained + reliable) ---
+  // Hold on the "Paid … — settled / On-chain receipt issued" confirmation. The
+  // stellar.expert beat is intentionally dropped — the external explorer renders
+  // a blank loading screen in a headless recording; the on-chain tx link is right
+  // here for anyone to open live.
+  await page.getByText(/— settled/i).first().scrollIntoViewIfNeeded();
+  await pause(page, 3000);
   const href = await txLink.getAttribute("href");
   console.log("withdraw tx:", href);
-
-  // --- Show the settlement transaction on stellar.expert ---
-  if (href) {
-    await page.goto(href, { waitUntil: "domcontentloaded", timeout: 60000 });
-    await pause(page, 9000); // let the explorer render the tx
-    await page.mouse.wheel(0, 500);
-    await pause(page, 4000);
-  }
+  await txLink.hover();
+  await pause(page, 3500);
 } finally {
   await page.close();
   await context.close();
