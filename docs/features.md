@@ -44,6 +44,35 @@ badge shows unread, claiming flips it to "Claimed").
 
 ---
 
+## UI/UX: consistent logo, mobile-responsive shell, logout — #115
+
+Three shell/branding fixes for the demo/first-run experience.
+
+- **Consistent logo** — a shared presentational `components/ui/Logo.tsx` (brand
+  mark + optional wordmark) is now the single source of truth, used by the tenant
+  Sidebar, the login/signup pages, and the receiver claim shell (previously only
+  the Sidebar showed a logo; auth/receiver were text-only). Favicon set via
+  `metadata.icons` → `/logo.png` in the root layout.
+- **Mobile-responsive tenant shell** — new `components/shell/AppShell.tsx` client
+  wrapper. Desktop (md+) keeps the original static Sidebar; below md it collapses
+  into a hamburger-triggered off-canvas drawer with a backdrop + a compact top bar
+  carrying the logo. The drawer closes on backdrop tap, on its X button, when a nav
+  link is followed (`onNavigate`), and on any route change (render-time
+  previous-value comparison — no effect, so no `set-state-in-effect` lint churn).
+  `app/(app)/layout.tsx` now renders `<AppShell>`.
+- **Tenant logout** — the Sidebar footer gained a logout control wired to a new
+  `app/(app)/actions.ts` `logoutAction` server action (mirrors the existing
+  receiver `receiverLogoutAction`): clears the session cookie + DB row via
+  `destroySession()` then redirects to `/login`. Works without JS (`<form action>`).
+  The receiver interface already had its own logout.
+
+Tests: `components/ui/__tests__/Logo.test.tsx` (mark/wordmark/alt), extended
+`Sidebar.test.tsx` (logout control present only with an action; close button only
+with `onClose`), `AppShell.test.tsx` (drawer opens on the menu button, closes on the
+backdrop). `pnpm typecheck` / `lint` / `build` green.
+
+---
+
 ## Reset DB + rich demo seed — #107
 
 A one-command database reset + a deterministic, offline, **rich demo seed** so

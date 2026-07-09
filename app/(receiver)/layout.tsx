@@ -1,6 +1,6 @@
 import type { JSX, ReactNode } from "react";
 
-import { Icon } from "@/components/ui/Icon";
+import { Logo } from "@/components/ui/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +14,8 @@ export default function ReceiverLayout({ children }: { children: ReactNode }): J
   return (
     <div className="min-h-screen bg-background text-on-surface flex flex-col">
       <header className="border-b border-outline-variant">
-        <div className="mx-auto w-full max-w-3xl px-4 py-4 flex items-center gap-2">
-          <Icon name="account_balance_wallet" className="text-[22px] text-primary" />
-          <span className="font-geist text-title-lg font-[800] tracking-tight">Trexure</span>
+        <div className="mx-auto w-full max-w-3xl px-4 py-4 flex items-center gap-3">
+          <Logo />
           <span className="text-label-mono uppercase tracking-widest font-bold text-primary/70">
             Claim your pay
           </span>

@@ -41,4 +41,25 @@ describe("Sidebar", () => {
     render(<Sidebar username="member" role="MEMBER" newPaymentsEnabled />);
     expect(screen.queryByText("Reports")).toBeNull();
   });
+
+  it("renders a logout control wired to the given action when provided (#115)", () => {
+    const onLogout = vi.fn();
+    render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled onLogout={onLogout} />);
+    const button = screen.getByLabelText("Log out");
+    // Progressive-enhancement: it's a real submit inside a form bound to the action.
+    expect(button.getAttribute("type")).toBe("submit");
+    expect(button.closest("form")).not.toBeNull();
+  });
+
+  it("omits the logout control when no action is supplied (#115)", () => {
+    render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled />);
+    expect(screen.queryByLabelText("Log out")).toBeNull();
+  });
+
+  it("renders a drawer close button only when onClose is supplied (#115)", () => {
+    const { rerender } = render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled />);
+    expect(screen.queryByLabelText("Close menu")).toBeNull();
+    rerender(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled onClose={() => {}} />);
+    expect(screen.getByLabelText("Close menu")).not.toBeNull();
+  });
 });
