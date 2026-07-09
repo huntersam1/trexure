@@ -27,6 +27,8 @@
     "zk:demo": "node zk/scripts/zk-demo.mjs",
     "pool:demo": "tsx --conditions=react-server zk/scripts/pool-demo.mjs",
     "demo:record": "node scripts/record-demo.mjs",
+    "demo:record:lifecycle": "node scripts/record-payment-lifecycle.mjs",
+    "demo:record:reports": "node scripts/record-reports.mjs",
     "demo:record:batch": "node scripts/record-batch.mjs",
     "demo:record:claim": "node scripts/record-claim.mjs"
   },

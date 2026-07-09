@@ -22,8 +22,8 @@ const pause = (page, ms) => page.waitForTimeout(ms);
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
-  viewport: { width: 1366, height: 800 },
-  recordVideo: { dir: rawDir, size: { width: 1366, height: 800 } },
+  viewport: { width: 1920, height: 1080 },
+  recordVideo: { dir: rawDir, size: { width: 1920, height: 1080 } },
 });
 const page = await context.newPage();
 
