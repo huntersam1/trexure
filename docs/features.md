@@ -5,6 +5,46 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Email claim details to off-platform receivers — #81
+
+Follow-up to batch epic **#80** and sibling to the in-app notification (**#82**).
+When a batch row has an email but no matching Trexure account, the send now
+**emails that receiver an auth-gated claim link** — never the raw bearer note.
+
+- **Delivery model (safe link, not the note)** — the email carries only the
+  amount, payer, and a one-time link to `/claim/access?t=<token>`. At send time
+  the note is stored in a new **`ClaimLink`** row **encrypted under a key derived
+  from the raw token** (only its sha256 is persisted); a DB read alone can't
+  recover the note. Reveal is gated twice: the caller must hold the token (from
+  the email) AND be an authenticated receiver. Links expire in 14 days. Migration
+  `add_claim_link`.
+- **Provider seam** — `lib/email/{provider,mock,templates}.ts` mirror the anchor
+  `mock|real` toggle via `EMAIL_PROVIDER` (default `mock` → logs, keeps CI
+  offline; `resend` is a NotImplemented stub until a real client is wired).
+  `EMAIL_FROM` also defaulted, so no new env var is required.
+- **Routing (finalizes #82's decision)** — on-platform (email matches a
+  `Receiver`) → in-app notification; off-platform (email, no account) → this
+  email. A receiver is never both notified in-app and emailed. Per-row
+  `notifiedInApp` / `emailedClaim` flags surface in the payer batch UI.
+- **Login round-trip fixes** — the emailed link lands on a receiver-gated page,
+  so two gaps had to be closed for it to work: middleware now preserves the full
+  **path + query** in `next` (the token survives login), and the receiver login
+  now honors a sanitized `next` (open-redirect–guarded, confined to `/claim…`)
+  instead of always dropping the user on `/claim`.
+- **Landing** — `/claim/access` reveals the note behind `requireReceiver` and
+  pre-fills the claim form (`ClaimForm` gained an `initialNote`); an
+  invalid/expired/tampered token shows a friendly dead-end, never a 500.
+
+Tests: DB-backed `claim-link.test.ts` (encrypt-at-rest, reveal round-trip,
+unknown/tampered/expired → null, email send status), extended `batch.test.ts`
+(off-platform emailed / on-platform not / none), `safe-next.test.ts` (open-redirect
+guard), `email/provider.test.ts`, jsdom `ClaimForm` prefill, and a middleware case
+for the `next` token-preservation. `pnpm typecheck` / `lint` / `build` green;
+verified live end-to-end (unauth link → login `next` carries the token → authenticated
+reveal pre-fills the note; bogus token → dead-end).
+
+---
+
 ## In-app claim notification for on-platform receivers — #82
 
 Follow-up to the batch-payments epic **#80**. When a batch row's email matches an

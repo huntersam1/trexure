@@ -8,6 +8,7 @@ import { logger } from "@/lib/log";
 import { aesEncrypt } from "@/lib/crypto/aes";
 import { loadViewKey } from "@/lib/crypto/viewkey";
 import { createClaimNotification } from "@/lib/receiver/notifications";
+import { emailClaimLink } from "@/lib/receiver/claim-link";
 import { createPoolDeposit } from "@/lib/pool/service";
 import { poolContractId } from "@/lib/pool/sync";
 import type { PoolBatchInput, PoolBatchReceiverInput } from "@/lib/validation/pool";
@@ -70,9 +71,11 @@ export type BatchReceiverSuccess = {
   poolContractId: string;
   deposit: { txHash: string; explorerUrl: string };
   // #82 routing: true when the receiver's email matched an existing Trexure
-  // account and an in-app claim notification was created. An off-platform
-  // receiver (no match) gets `false` here — email delivery is the #81 follow-up.
+  // account and an in-app claim notification was created.
   notifiedInApp: boolean;
+  // #81 routing: true when a claim-link email was sent (off-platform receiver
+  // with an email who wasn't reached in-app). On-platform / no-email → false.
+  emailedClaim: boolean;
 };
 
 export type BatchReceiverFailure = {
@@ -189,9 +192,24 @@ export async function createPoolBatch(
 
       // #82: if this receiver's email matches an existing Trexure account,
       // surface the disbursement in their in-app inbox (on-platform routing).
-      // Off-platform receivers fall through to email (#81). Never let a
-      // notification hiccup fail an already-persisted disbursement.
+      // Never let a notification hiccup fail an already-persisted disbursement.
       const notifiedInApp = await notifyOnPlatformReceiver(email, payment.id);
+
+      // #81: off-platform receivers (email given, but NOT already on-platform)
+      // get the claim details by email — a safe auth-gated link, never the raw
+      // note. On-platform receivers already have the in-app notification, so we
+      // don't also email them (no double-notify). emailClaimLink never throws.
+      const emailedClaim =
+        email && !notifiedInApp
+          ? await emailClaimLink({
+              paymentId: payment.id,
+              note: deposit.note,
+              email,
+              payerName: tenantName,
+              amount: String(receiver.amount),
+              asset: "XLM",
+            })
+          : false;
 
       successCount += 1;
       successTotal += receiver.amount;
@@ -208,6 +226,7 @@ export async function createPoolBatch(
         poolContractId: contractId,
         deposit: { txHash: deposit.txHash, explorerUrl: deposit.explorerUrl },
         notifiedInApp,
+        emailedClaim,
       });
     } catch (err) {
       logger.error({ err, ref: receiver.ref, batchId: batch.id }, "batch disbursement failed");

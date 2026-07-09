@@ -10,7 +10,7 @@ const inputCls =
   "bg-surface border border-outline rounded-lg px-4 py-2.5 text-body-sm focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none";
 const labelCls = "text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/70";
 
-export function ReceiverAuthForm(): JSX.Element {
+export function ReceiverAuthForm({ next = "/claim" }: { next?: string }): JSX.Element {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [state, action, pending] = useActionState(receiverAuthAction, INITIAL);
   const registering = mode === "register";
@@ -18,6 +18,7 @@ export function ReceiverAuthForm(): JSX.Element {
   return (
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="intent" value={mode} />
+      <input type="hidden" name="next" value={next} />
 
       <div className="flex rounded-lg border border-outline-variant p-1 text-body-sm">
         <button
