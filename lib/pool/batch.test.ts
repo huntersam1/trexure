@@ -11,6 +11,8 @@ import { createPoolBatch } from "@/lib/pool/batch";
 
 const TENANT = "test_tenant_batch_p2";
 const USER = "test_user_batch_p2";
+const RECEIVER = "test_receiver_batch_p2";
+const RECEIVER_EMAIL = "batch-onplatform@example.com";
 
 // A deposit that mints a deterministic note per amount; amount 999 blows up to
 // exercise partial-failure.
@@ -33,12 +35,19 @@ beforeAll(async () => {
     update: {},
     create: { id: USER, tenantId: TENANT, username: USER, passwordHash: "x" },
   });
+  await prisma.receiver.upsert({
+    where: { id: RECEIVER },
+    update: {},
+    create: { id: RECEIVER, email: RECEIVER_EMAIL, passwordHash: "x" },
+  });
   createPoolDeposit.mockImplementation(async ({ amount }: { amount: number }) => depositFor(amount));
 });
 
 afterAll(async () => {
+  await prisma.notification.deleteMany({ where: { receiverId: RECEIVER } });
   await prisma.payment.deleteMany({ where: { tenantId: TENANT } });
   await prisma.paymentBatch.deleteMany({ where: { tenantId: TENANT } });
+  await prisma.receiver.deleteMany({ where: { id: RECEIVER } });
   await prisma.user.deleteMany({ where: { id: USER } });
   await prisma.tenant.deleteMany({ where: { id: TENANT } });
   await prisma.$disconnect();
@@ -103,5 +112,27 @@ describe("createPoolBatch", () => {
     expect(good.map((r) => r.ref)).toEqual(["Carol", "Erin"]);
     const persisted = await prisma.payment.count({ where: { batchId: res.batchId } });
     expect(persisted).toBe(2);
+  });
+
+  it("notifies an on-platform receiver in-app and skips an off-platform one (#82)", async () => {
+    const res = await createPoolBatch(TENANT, USER, {
+      receivers: [
+        { amount: 4, ref: "OnPlatform", email: RECEIVER_EMAIL.toUpperCase() }, // case-insensitive match
+        { amount: 6, ref: "OffPlatform", email: "stranger@example.com" },
+        { amount: 8, ref: "NoEmail" },
+      ],
+    });
+
+    const onP = res.results.find((r) => r.ref === "OnPlatform")!;
+    const offP = res.results.find((r) => r.ref === "OffPlatform")!;
+    const noEmail = res.results.find((r) => r.ref === "NoEmail")!;
+    expect(onP.ok && onP.notifiedInApp).toBe(true);
+    expect(offP.ok && offP.notifiedInApp).toBe(false);
+    expect(noEmail.ok && noEmail.notifiedInApp).toBe(false);
+
+    // Exactly the matched receiver's payment produced a notification.
+    const notifs = await prisma.notification.findMany({ where: { receiverId: RECEIVER } });
+    expect(notifs).toHaveLength(1);
+    expect(onP.ok && notifs[0]!.paymentId).toBe(onP.ok ? onP.paymentId : undefined);
   });
 });

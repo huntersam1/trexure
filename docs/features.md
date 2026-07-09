@@ -5,6 +5,45 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## In-app claim notification for on-platform receivers — #82
+
+Follow-up to the batch-payments epic **#80**. When a batch row's email matches an
+existing Trexure **Receiver** account, the disbursement now surfaces in that
+receiver's in-app inbox on login instead of relying solely on an out-of-band note.
+
+- **`Notification` model** (new) — links a global `Receiver` to a disbursement
+  `Payment`, with `readAt` / `claimedAt` and a `@@unique([receiverId, paymentId])`
+  so send-time creation is idempotent on retry. Not tenant-scoped (mirrors
+  `Receiver`/`ReceiverSession`), so it's reached via plain `prisma`. Migration
+  `add_notification_model`.
+- **Send-time match** — `createPoolBatch` (#84) now matches each row's email
+  (case-insensitive) to a `Receiver`; on a hit it creates the notification and
+  reports `notifiedInApp: true` on that row. Never throws — a notification hiccup
+  can't fail an already-persisted disbursement.
+- **Receiver inbox** — `lib/receiver/notifications.ts` (list / unread-count /
+  mark-all-read / mark-claimed), a new `/claim/inbox` page (receiver-session gated
+  by middleware like the rest of `/claim/*`), an unread badge + Inbox link on the
+  claim page, and a `NotificationItem` component.
+- **Claim clears it** — `submitClaim` marks the disbursement's notification(s)
+  `claimedAt` + `readAt` on a successful claim (best-effort), so the badge drops
+  and the inbox shows "Claimed".
+- **Privacy** — a notification references the disbursement only (payer, amount,
+  status). The bearer note is never persisted anywhere, so it is never in a
+  notification; the receiver still supplies the privately-delivered note to claim.
+- **Routing decision (with #81)** — on-platform (email matches a `Receiver`) →
+  in-app notification (this issue). Off-platform (no match) → email delivery, the
+  **#81** follow-up. `notifiedInApp` on the batch result is the signal #81 will use
+  to decide who still needs an email, so a receiver isn't double-notified.
+
+Tests: DB-backed `notifications.test.ts` (idempotent create, list, unread count,
+mark-all-read, mark-claimed), extended `batch.test.ts` (on-platform match notifies,
+off-platform / no-email don't), extended `claim.test.ts` (claim clears the
+notification), and jsdom `NotificationItem.test.tsx`. `pnpm typecheck` / `lint` /
+`build` green; verified live on a fresh dev server (inbox renders the notification,
+badge shows unread, claiming flips it to "Claimed").
+
+---
+
 ## Reset DB + rich demo seed — #107
 
 A one-command database reset + a deterministic, offline, **rich demo seed** so
