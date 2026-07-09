@@ -89,4 +89,71 @@
       close();
     });
   }
+
+  /* ---- demo carousel ---- */
+  var demo = document.querySelector(".demo-carousel");
+  if (demo) {
+    var demoTabs = Array.prototype.slice.call(demo.querySelectorAll(".demo-tab"));
+    var demoSlides = Array.prototype.slice.call(demo.querySelectorAll(".demo-slide"));
+    var demoPrev = demo.querySelector(".demo-prev");
+    var demoNext = demo.querySelector(".demo-next");
+    var demoTrack = demo.querySelector(".demo-track");
+    var demoCur = 0;
+
+    function thumbMarkup(id) {
+      return (
+        '<img class="demo-thumb" src="https://img.youtube.com/vi/' + id + '/maxresdefault.jpg" ' +
+        'onerror="this.onerror=null;this.src=\'https://img.youtube.com/vi/' + id + '/hqdefault.jpg\'" ' +
+        'alt="" loading="lazy" />' +
+        '<button class="demo-play" type="button" aria-label="Play demo">' +
+        '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>'
+      );
+    }
+
+    function resetVideos() {
+      demoSlides.forEach(function (s) {
+        var frame = s.querySelector(".demo-frame");
+        if (frame && frame.getAttribute("data-playing") === "1") {
+          frame.removeAttribute("data-playing");
+          frame.innerHTML = thumbMarkup(s.getAttribute("data-video"));
+        }
+      });
+    }
+
+    function showDemo(i) {
+      i = (i + demoSlides.length) % demoSlides.length;
+      resetVideos();
+      demoCur = i;
+      demoSlides.forEach(function (s, n) { s.classList.toggle("is-active", n === i); });
+      demoTabs.forEach(function (t, n) {
+        var on = n === i;
+        t.classList.toggle("is-active", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+
+    demoTabs.forEach(function (t) {
+      t.addEventListener("click", function () {
+        showDemo(parseInt(t.getAttribute("data-i"), 10) || 0);
+      });
+    });
+    if (demoPrev) demoPrev.addEventListener("click", function () { showDemo(demoCur - 1); });
+    if (demoNext) demoNext.addEventListener("click", function () { showDemo(demoCur + 1); });
+
+    if (demoTrack) {
+      demoTrack.addEventListener("click", function (e) {
+        var btn = e.target.closest && e.target.closest(".demo-play");
+        if (!btn) return;
+        var slide = btn.closest(".demo-slide");
+        var id = slide && slide.getAttribute("data-video");
+        var frame = slide && slide.querySelector(".demo-frame");
+        if (!frame || !id) return;
+        frame.setAttribute("data-playing", "1");
+        frame.innerHTML =
+          '<iframe src="https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&rel=0" ' +
+          'title="Trexure demo" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
+          'allowfullscreen></iframe>';
+      });
+    }
+  }
 })();

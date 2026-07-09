@@ -28,6 +28,8 @@
     <nav class="nav-links" aria-label="Primary">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
+      <a href="#batch">Batch</a>
+      <a href="#reports">Reports</a>
       <a href="privacy.html">Privacy</a>
       <a href="terms.html">Terms</a>
       <a href="#contact">Contact</a>
@@ -47,7 +49,6 @@
   <div class="wrap">
     <div class="hero-grid">
       <div class="hero-copy">
-        <span class="eyebrow reveal">Unified Treasury API · Stellar</span>
         <h1 class="reveal d1">
           The private treasury<br />
           for <span class="accent">Stellar</span> payments,<br />
@@ -55,44 +56,104 @@
         </h1>
         <p class="lead hero-sub reveal d2">
           Trexure shields a Stellar payment on-chain, reconciles it against the
-          off-chain fiat leg, and emits one clean, accounting-ready receipt.
-          The blockchain disappears — your books stay beautiful.
+          off-chain fiat leg, and emits one clean, accounting-ready receipt —
+          for a single payout or a whole roster at once. The blockchain
+          disappears; your books, and your reports, stay beautiful.
         </p>
         <div class="hero-cta reveal d3">
           <a class="btn btn-gold" href="https://app.trexure.xyz">Open the app <span class="arr">→</span></a>
           <a class="btn btn-ghost" href="#how">See how it works</a>
         </div>
-        <div class="hero-trust reveal d4">
-          <span class="pulse" aria-hidden="true"></span>
-          <span>ZK-shielded · server-side decrypt · multi-tenant</span>
-        </div>
       </div>
 
       <div class="hero-visual reveal d2">
-        <!-- Hero cover image: generation prompt placeholder -->
-        <figure class="gen" role="img" aria-label="Hero cover image placeholder">
-          <figcaption class="gen-caption">
-            <span class="lbl">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
-              Hero cover image — generation prompt
-            </span>
-            <p>Wide cinematic hero, abstract private treasury: two luminous ribbon streams — royal violet (#8E44AD) and metallic gold (#D4AF37) — flowing through a deep aubergine-black (#1A1025) void, converging to one bright point at lower center forming a subtle upward arrow. Volumetric fog, fine grain, restrained institutional-fintech aesthetic (Stripe/Mercury). No text, no coins, no blockchain clichés. 16:7, negative space top-left for headline.</p>
-          </figcaption>
-        </figure>
+        <img class="hero-img" src="hero.jpg" alt="Trexure — a private treasury for Stellar payments, reconciled to fiat" />
+      </div>
+    </div>
+  </div>
+</section>
 
-        <!-- The Stripe-ified receipt (live CSS mock — the actual product output) -->
-        <div class="receipt" aria-hidden="true">
-          <div class="receipt-top">
-            <span class="receipt-id">rcpt_trex_7F2A…</span>
-            <span class="badge"><span class="d"></span>SETTLED</span>
-          </div>
-          <div class="receipt-row"><span class="k">Corridor</span><span class="v">USD → PHP</span></div>
-          <div class="receipt-row"><span class="k">Source</span><span class="v amt">$2,500.00</span></div>
-          <div class="receipt-row"><span class="k">Destination</span><span class="v amt">₱141,750.00</span></div>
-          <div class="receipt-row"><span class="k">FX rate</span><span class="receipt-fx">56.70</span></div>
-          <div class="receipt-row"><span class="k">Shielded</span><span class="v">✓ yes</span></div>
-          <div class="receipt-hash">proofHash · 0x9a3f…c41e · ledger 412,887</div>
+<!-- ===================== DEMO CAROUSEL (dark) ===================== -->
+<section class="section demo" id="demo">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">See it in action</span>
+        <h2 class="reveal d1" style="margin-top:18px">Watch Trexure work.</h2>
+      </div>
+      <p class="lead reveal d2">Four short demos — from sending a shielded batch to exporting an auditor-ready report.</p>
+    </div>
+
+    <div class="demo-carousel reveal d2">
+      <div class="demo-tabs" role="tablist" aria-label="Feature demos">
+        <button class="demo-tab is-active" type="button" role="tab" aria-selected="true" data-i="0">Batch Send</button>
+        <button class="demo-tab" type="button" role="tab" aria-selected="false" data-i="1">Claim</button>
+        <button class="demo-tab" type="button" role="tab" aria-selected="false" data-i="2">Payment Lifecycle</button>
+        <button class="demo-tab" type="button" role="tab" aria-selected="false" data-i="3">Reports</button>
+      </div>
+
+      <div class="demo-stage">
+        <button class="demo-arrow demo-prev" type="button" aria-label="Previous demo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+
+        <div class="demo-track">
+          <article class="demo-slide is-active" data-i="0" data-video="uI2MHbpgKwo">
+            <div class="demo-frame">
+              <img class="demo-thumb" src="https://img.youtube.com/vi/uI2MHbpgKwo/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://img.youtube.com/vi/uI2MHbpgKwo/hqdefault.jpg'" alt="Batch Send demo" loading="lazy" />
+              <button class="demo-play" type="button" aria-label="Play the Batch Send demo">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+            </div>
+            <div class="demo-cap">
+              <h3>Batch Send</h3>
+              <p>Compose a roster of up to 50 receivers and send them in one shielded batch — each payout minted as a private, claimable note.</p>
+            </div>
+          </article>
+
+          <article class="demo-slide" data-i="1" data-video="gdLI1LQ2C9g">
+            <div class="demo-frame">
+              <img class="demo-thumb" src="https://img.youtube.com/vi/gdLI1LQ2C9g/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://img.youtube.com/vi/gdLI1LQ2C9g/hqdefault.jpg'" alt="Claim demo" loading="lazy" />
+              <button class="demo-play" type="button" aria-label="Play the Claim demo">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+            </div>
+            <div class="demo-cap">
+              <h3>Claim</h3>
+              <p>A receiver opens their claim link and cashes out on their terms — to a Stellar wallet or a Philippine bank account.</p>
+            </div>
+          </article>
+
+          <article class="demo-slide" data-i="2" data-video="2azvNWBy-ig">
+            <div class="demo-frame">
+              <img class="demo-thumb" src="https://img.youtube.com/vi/2azvNWBy-ig/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://img.youtube.com/vi/2azvNWBy-ig/hqdefault.jpg'" alt="Payment Lifecycle demo" loading="lazy" />
+              <button class="demo-play" type="button" aria-label="Play the Payment Lifecycle demo">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+            </div>
+            <div class="demo-cap">
+              <h3>Payment Lifecycle</h3>
+              <p>Follow one payment from a shielded on-chain send through auto-reconciliation to a clean, settled receipt.</p>
+            </div>
+          </article>
+
+          <article class="demo-slide" data-i="3" data-video="sSVxj50LGAs">
+            <div class="demo-frame">
+              <img class="demo-thumb" src="https://img.youtube.com/vi/sSVxj50LGAs/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://img.youtube.com/vi/sSVxj50LGAs/hqdefault.jpg'" alt="Reports demo" loading="lazy" />
+              <button class="demo-play" type="button" aria-label="Play the Reports demo">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+            </div>
+            <div class="demo-cap">
+              <h3>Reports</h3>
+              <p>Export what finance needs — reconciliation, disclosure, payroll, attestation, and FX — drawn straight from stored receipts.</p>
+            </div>
+          </article>
         </div>
+
+        <button class="demo-arrow demo-next" type="button" aria-label="Next demo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
       </div>
     </div>
   </div>
@@ -189,6 +250,117 @@
   </div>
 </section>
 
+<!-- ===================== BATCH PAYMENTS ===================== -->
+<section class="section features" id="batch">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">Batch payments</span>
+        <h2 class="reveal d1" style="margin-top:18px">Pay a whole roster, privately.</h2>
+      </div>
+      <p class="lead reveal d2">Disburse to up to 50 receivers in one shielded batch. Each payout becomes a private, claimable note — no public payroll, no spreadsheet of wallet addresses.</p>
+    </div>
+
+    <div class="feat-grid">
+      <article class="feat reveal d1">
+        <span class="num">01</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 15v6M15 18h6" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Build the roster</h3>
+        <p>Up to 50 rows: an amount, a label like “Alice · invoice #42”, and an optional email. Compose once, send once.</p>
+      </article>
+
+      <article class="feat reveal d2">
+        <span class="num">02</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l8 3v5.5c0 4.8-3.4 8.6-8 9.5-4.6-.9-8-4.7-8-9.5V6l8-3z"/><path d="M12 9v4M10 11h4" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Minted as shielded notes</h3>
+        <p>Each row mints a private claimable note. The ledger stores only a commitment; receiver details stay encrypted under your view key.</p>
+      </article>
+
+      <article class="feat reveal d3">
+        <span class="num">03</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a4 4 0 0 0 5.7.3l2.6-2.6a4 4 0 0 0-5.7-5.7l-1.3 1.3"/><path d="M14 11a4 4 0 0 0-5.7-.3l-2.6 2.6a4 4 0 0 0 5.7 5.7l1.3-1.3" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Hand out claim links</h3>
+        <p>Copy a note or claim link per receiver. They claim to a Stellar wallet or a PH bank account, on their terms.</p>
+      </article>
+
+      <article class="feat reveal d4">
+        <span class="num">04</span>
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M9 19V5M14 19v-6"/><path d="M19 19v-9" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Live roll-up</h3>
+        <p>Every disbursement moves send → on-chain → reconcile → receipt, with claimed, unclaimed, and failed counts per batch.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== REPORTS ===================== -->
+<section class="section reports" id="reports">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="eyebrow reveal">Reports</span>
+        <h2 class="reveal d1" style="margin-top:18px">Every export your<br />finance team asks for.</h2>
+      </div>
+      <p class="lead reveal d2">Five report types, drawn straight from the receipts you already hold — so the numbers never drift. CSV for the ledger, PDF for the file, JSON for the pipeline.</p>
+    </div>
+
+    <div class="report-grid">
+      <article class="feat reveal d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7c0-1.1 3.6-2 8-2s8 .9 8 2-3.6 2-8 2-8-.9-8-2z"/><path d="M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7"/><path d="M9 13l2 2 4-4" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Reconciliation Statement</h3>
+        <p>Every settled payment for the period, plus an exceptions list finance chases: in-flight, failed, and funds-in-custody. Totals by currency.</p>
+        <div class="fmts"><span class="fmt">CSV</span><span class="fmt">PDF</span></div>
+      </article>
+
+      <article class="feat reveal d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l8 3v5.5c0 4.8-3.4 8.6-8 9.5-4.6-.9-8-4.7-8-9.5V6l8-3z"/><circle cx="12" cy="11" r="2.2" stroke="#D4AF37"/><path d="M12 13.2V16" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Compliance &amp; Audit Disclosure Pack</h3>
+        <p>The report only Trexure can produce: shielded payments decrypted under your view key, with on-chain and fiat proof — and its own audit trail. For an auditor, the BIR, or AMLC.</p>
+        <div class="fmts"><span class="fmt">PDF</span><span class="fmt">CSV</span><span class="fmt">JSON</span></div>
+      </article>
+
+      <article class="feat reveal d3">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M4 19a5 5 0 0 1 10 0"/><path d="M17 9l1.5 1.5L21 8" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Disbursement / Payroll Register</h3>
+        <p>One row per payout across your batches, with claimed / unclaimed / failed roll-ups and totals by currency.</p>
+        <div class="fmts"><span class="fmt">CSV</span><span class="fmt">PDF</span></div>
+      </article>
+
+      <article class="feat reveal d1">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 14l2 2 4-4" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>Proof-of-Payment Attestation</h3>
+        <p>A single tamper-evident document proving one payment settled — verifiable on-chain and HMAC-sealed — without exposing the rest of your ledger.</p>
+        <div class="fmts"><span class="fmt">PDF</span><span class="fmt">JSON</span></div>
+      </article>
+
+      <article class="feat reveal d2">
+        <div class="feat-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18L10 12l4 4 6-8"/><path d="M20 8h-3.5M20 8v3.5" stroke="#D4AF37"/></svg>
+        </div>
+        <h3>FX Realized Gain/Loss &amp; Fees</h3>
+        <p>Realized rate, gain/loss vs. the intent-time quote, fees, and slippage — per payment and per corridor. For treasury and tax.</p>
+        <div class="fmts"><span class="fmt">CSV</span><span class="fmt">PDF</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== SHOWCASE (dark) ===================== -->
 <section class="section showcase">
   <div class="wrap">
@@ -200,15 +372,6 @@
       <p class="lead reveal d2">Trexure is multi-tenant SaaS with a restrained palette and one accent. Monospace lives only where it belongs — hashes and JSON. Everything else reads like a statement from your bank.</p>
     </div>
 
-    <figure class="gen reveal d2" role="img" aria-label="Dashboard cover image placeholder" style="aspect-ratio:16/8; max-width:980px; margin:0 auto;">
-      <figcaption class="gen-caption">
-        <span class="lbl">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>
-          Product showcase image — generation prompt
-        </span>
-        <p>Editorial product screenshot in restrained fintech style: a calm dashboard on off-white (#F7F9FB) with a single settlement card, a KPI strip, a monospace transaction hash, and a gold (#D4AF37) “Settled” badge. Deep aubergine-black (#1A1025) sidebar. No charts, no crypto imagery, no neon. Mercury/Stripe restraint. 16:8, soft shadow.</p>
-      </figcaption>
-    </figure>
   </div>
 </section>
 
@@ -219,12 +382,12 @@
       <span class="eyebrow">Contact us</span>
       <h2 style="margin-top:20px">Let's settle your treasury.</h2>
       <p>Questions, demos, or integrations — reach the Trexure team directly. We read every message.</p>
-      <a class="contact-email" href="mailto:trexure@artisam.xyz">
-        <span class="at">@</span>trexure.artisam.xyz
+      <a class="contact-email" href="mailto:hello@artisam.xyz">
+        hello<span class="at">@</span>artisam.xyz
       </a>
       <div class="contact-ctas">
         <a class="btn btn-gold" href="https://app.trexure.xyz">Open the app <span class="arr">→</span></a>
-        <a class="btn btn-dark-ghost" href="mailto:trexure@artisam.xyz">Email us</a>
+        <a class="btn btn-dark-ghost" href="mailto:hello@artisam.xyz">Email us</a>
       </div>
     </div>
   </div>
@@ -246,11 +409,12 @@
         <a href="https://app.trexure.xyz">Open the app</a>
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
+        <a href="#batch">Batch payments</a>
+        <a href="#reports">Reports</a>
       </div>
       <div class="footer-col">
         <h4>Resources</h4>
-        <a href="https://app.trexure.xyz">Download the Chrome extension</a>
-        <a href="mailto:trexure@artisam.xyz">Contact us</a>
+        <a href="mailto:hello@artisam.xyz">Contact us</a>
         <a href="https://artisam.xyz">Artisam Labs</a>
       </div>
       <div class="footer-col">
@@ -263,7 +427,7 @@
       <span>© <span id="yr">2026</span> Trexure. A product of <a href="https://artisam.xyz">Artisam Labs</a>.</span>
       <span>
         <a href="https://app.trexure.xyz">app.trexure.xyz</a><span class="sep">·</span>
-        <a href="mailto:trexure@artisam.xyz">trexure@artisam.xyz</a><span class="sep">·</span>
+        <a href="mailto:hello@artisam.xyz">hello@artisam.xyz</a><span class="sep">·</span>
         <a href="privacy.html">Privacy</a><span class="sep">·</span>
         <a href="terms.html">Terms</a>
       </span>
