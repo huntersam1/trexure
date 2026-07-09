@@ -26,6 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Trexure",
   description: "Unified Treasury API for Stellar.",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({
