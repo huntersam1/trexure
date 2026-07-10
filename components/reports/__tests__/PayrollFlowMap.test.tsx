@@ -108,7 +108,7 @@ describe("PayrollFlowMap", () => {
 
   it("expands a batch on click, showing destination groups and leaf links", () => {
     render(<PayrollFlowMap flow={FLOW} scopedBatchId={null} />);
-    fireEvent.click(screen.getAllByRole("button", { name: /Batch/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Batch/ })[0]!);
 
     // Scope to the tree container — the legend in the header repeats these labels.
     const tree = within(screen.getByTestId("flow-tree"));
@@ -123,7 +123,7 @@ describe("PayrollFlowMap", () => {
     expect(screen.getByText("unclaimed 6d")).not.toBeNull();
 
     // Collapse again.
-    fireEvent.click(screen.getAllByRole("button", { name: /Batch/ })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Batch/ })[0]!);
     expect(screen.queryByText("Alice")).toBeNull();
   });
 

@@ -80,7 +80,7 @@ export function PayrollFlowMap({
   const nodesRef = useRef(new Map<string, HTMLElement>());
   const [paths, setPaths] = useState<string[]>([]);
 
-  const setNode = (id: string) => (el: HTMLElement | null) => {
+  const setNode = (id: string, el: HTMLElement | null): void => {
     if (el) nodesRef.current.set(id, el);
     else nodesRef.current.delete(id);
   };
@@ -154,7 +154,7 @@ export function PayrollFlowMap({
 
           {/* Root */}
           <div
-            ref={setNode("root")}
+            ref={(el) => setNode("root", el)}
             className="relative z-[1] shrink-0 self-center rounded-full bg-primary px-6 py-3 text-center"
           >
             <p className="font-geist text-body-lg font-bold text-on-primary">Treasury</p>
@@ -196,14 +196,14 @@ function BatchRow({
   batch: FlowBatch;
   expanded: boolean;
   onToggle: () => void;
-  setNode: (id: string) => (el: HTMLElement | null) => void;
+  setNode: (id: string, el: HTMLElement | null) => void;
 }): JSX.Element {
   return (
     <div className="flex items-center gap-12">
       <span className="relative group inline-flex">
         <button
           type="button"
-          ref={setNode(`b:${batch.batchId}`)}
+          ref={(el) => setNode(`b:${batch.batchId}`, el)}
           onClick={onToggle}
           aria-expanded={expanded}
           className={`shrink-0 rounded-full border px-4 py-2 text-left transition-colors ${
@@ -237,12 +237,12 @@ function BatchRow({
         <div className="flex flex-col gap-4">
           {batch.groups.map((g) => (
             <div key={g.type} className="flex items-center gap-10">
-              <span ref={setNode(`g:${batch.batchId}:${g.type}`)} className="shrink-0">
+              <span ref={(el) => setNode(`g:${batch.batchId}:${g.type}`, el)} className="shrink-0">
                 <GroupNode group={g} />
               </span>
               <ul className="flex flex-col gap-1.5">
                 {g.leaves.map((leaf) => (
-                  <li key={leaf.paymentId} ref={setNode(`l:${leaf.paymentId}`)}>
+                  <li key={leaf.paymentId} ref={(el) => setNode(`l:${leaf.paymentId}`, el)}>
                     <Link
                       href={leaf.href as Route}
                       className="inline-flex items-baseline gap-2 rounded-lg px-2 py-1 hover:bg-surface-container-highest"

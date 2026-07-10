@@ -109,8 +109,8 @@ describe("buildPayrollFlow", () => {
     const flow = buildPayrollFlow(reg);
 
     expect(flow.batches).toHaveLength(1);
-    expect(flow.batches[0].groups.map((g) => g.type)).toEqual(["WALLET", "BANK", "FAILED"]);
-    expect(flow.batches[0].destTypes).toEqual(["WALLET", "BANK", "FAILED"]);
+    expect(flow.batches[0]!.groups.map((g) => g.type)).toEqual(["WALLET", "BANK", "FAILED"]);
+    expect(flow.batches[0]!.destTypes).toEqual(["WALLET", "BANK", "FAILED"]);
   });
 
   it("builds leaves with amount, detail, and payment-detail href", () => {
@@ -127,9 +127,9 @@ describe("buildPayrollFlow", () => {
         row({ paymentId: "p_pending", receiver: "Carol", claimState: "unclaimed", status: "PENDING", withdrawTx: "" }),
       ]),
     ]);
-    const [wallet, bankGroup, pending] = buildPayrollFlow(reg).batches[0].groups;
+    const [wallet, bankGroup, pending] = buildPayrollFlow(reg).batches[0]!.groups;
 
-    expect(wallet.leaves[0]).toEqual({
+    expect(wallet!.leaves[0]).toEqual({
       paymentId: "p_wallet",
       batchId: "b1",
       receiver: "Alice",
@@ -137,9 +137,9 @@ describe("buildPayrollFlow", () => {
       detail: "tx txhash_a…",
       href: "/pool/batches/b1/p_wallet",
     });
-    expect(bankGroup.leaves[0].detail).toBe("BANK-BOB");
-    expect(bankGroup.leaves[0].amount).toBe("20 XLM");
-    expect(pending.leaves[0].detail).toBe("unclaimed 6d");
+    expect(bankGroup!.leaves[0]!.detail).toBe("BANK-BOB");
+    expect(bankGroup!.leaves[0]!.amount).toBe("20 XLM");
+    expect(pending!.leaves[0]!.detail).toBe("unclaimed 6d");
   });
 
   it("falls back when refs are missing: short tx kept whole, blank bank ref labelled", () => {
@@ -150,9 +150,9 @@ describe("buildPayrollFlow", () => {
         row({ paymentId: "p_notx", withdrawTx: "" }),
       ]),
     ]);
-    const [wallet, bank] = buildPayrollFlow(reg).batches[0].groups;
-    expect(wallet.leaves.map((l) => l.detail)).toEqual(["tx tx_alice", "on-chain wallet"]);
-    expect(bank.leaves[0].detail).toBe("bank payout");
+    const [wallet, bank] = buildPayrollFlow(reg).batches[0]!.groups;
+    expect(wallet!.leaves.map((l) => l.detail)).toEqual(["tx tx_alice", "on-chain wallet"]);
+    expect(bank!.leaves[0]!.detail).toBe("bank payout");
   });
 
   it("subtotals each group by asset and carries batch/root metadata", () => {
@@ -164,12 +164,12 @@ describe("buildPayrollFlow", () => {
       ]),
     ]);
     const flow = buildPayrollFlow(reg);
-    const b = flow.batches[0];
+    const b = flow.batches[0]!;
 
     expect(flow.disbursementCount).toBe(3);
     expect(flow.totals).toEqual([{ currency: "XLM", total: "60" }]);
-    expect(b.groups[0].totals).toEqual([{ currency: "XLM", total: "15.5" }]);
-    expect(b.groups[0].count).toBe(2);
+    expect(b.groups[0]!.totals).toEqual([{ currency: "XLM", total: "15.5" }]);
+    expect(b.groups[0]!.count).toBe(2);
     expect({ claimed: b.claimed, unclaimed: b.unclaimed, failed: b.failed }).toEqual({
       claimed: 2,
       unclaimed: 1,
