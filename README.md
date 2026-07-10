@@ -395,13 +395,25 @@ set `ENABLE_POOL_RAIL=true` in `.env` (default off; when off, `/pool*` and
   (mock PDAX off-ramp → reconciles to a receipt). A note is a **bearer credential** —
   any holder can claim it, so deliver it privately.
 
-**Demo claimant accounts** (local dev — re-create on a fresh DB via
-`prisma.receiver.upsert` with an argon2id `passwordHash`):
+**Demo credentials** — created by the seed (`pnpm db:seed`, or the first deploy).
+Member and receiver passwords are hard-coded in the seed and safe to share; the
+admin password is whatever `SEED_ADMIN_PASSWORD` is set to and is **never
+committed**.
 
-| Email | Password |
-|---|---|
-| `alice@claim.test` | `trexure-demo-2026` |
-| `bob@claim.test` | `trexure-demo-2026` |
+| Role | Username / email | Password | Log in at |
+|---|---|---|---|
+| **Admin** | `admin` | `SEED_ADMIN_PASSWORD` (from `.env` / deploy env) | `/login` |
+| **Member** | `member` | `demo-member-pass-2026` | `/login` |
+| **Receiver** | `maria@freelance.demo` | `demo-maria-pass-2026` | `/claim/login` |
+| **Receiver** | `jose@freelance.demo` | `demo-jose-pass-2026` | `/claim/login` |
+| **Receiver** | `ana@freelance.demo` | `demo-ana-pass-2026` | `/claim/login` |
+
+Receivers are a **separate persona** with their own session — a tenant login grants
+nothing on `/claim`, and vice-versa. Passwords are argon2id-hashed in the DB;
+override the member/receiver ones via `SEED_MEMBER_PASSWORD` / `SEED_<NAME>_PASSWORD`
+if desired. See [`docs/demo/demo-credentials.md`](docs/demo/demo-credentials.md) for
+the full demo dataset. A live staging demo runs at
+**https://web-staging-873e.up.railway.app** (login the same accounts above).
 
 > **Pool capacity:** the demo `ShieldedPool` is a **depth-4 Merkle tree — 16
 > deposits max**. When full, deposits revert with `Error(Contract, #3)`
