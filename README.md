@@ -395,6 +395,16 @@ set `ENABLE_POOL_RAIL=true` in `.env` (default off; when off, `/pool*` and
   (mock PDAX off-ramp → reconciles to a receipt). A note is a **bearer credential** —
   any holder can claim it, so deliver it privately.
 
+**Sample Stellar wallet addresses** — valid testnet public keys to paste into the
+**Crypto wallet** field when claiming a note (any valid `G…` StrKey works; these are
+throwaway keypairs kept here for convenience):
+
+```
+GAMH4WD2LB3TWDJ7K7FLSFXLPQ6MI7XLITSSPMVJYJNLEA57TBUCBRXQ
+GDKP6ULHSKU3QM3IUWWU7OS6SEROMB45ID6XXL52MS7G532GWMXZ6DME
+GAJRIPWHRURWWKUWCY74IKUXF2PGTVJE3Y6ZVNTAB4QQTVND4PMQHLZF
+```
+
 **Demo credentials** — created by the seed (`pnpm db:seed`, or the first deploy).
 Member and receiver passwords are hard-coded in the seed and safe to share; the
 admin password is whatever `SEED_ADMIN_PASSWORD` is set to and is **never
@@ -413,7 +423,7 @@ nothing on `/claim`, and vice-versa. Passwords are argon2id-hashed in the DB;
 override the member/receiver ones via `SEED_MEMBER_PASSWORD` / `SEED_<NAME>_PASSWORD`
 if desired. See [`docs/demo/demo-credentials.md`](docs/demo/demo-credentials.md) for
 the full demo dataset. A live staging demo runs at
-**https://web-staging-873e.up.railway.app** (login the same accounts above).
+**https://app.trexure.xyz** (login the same accounts above).
 
 > **Pool capacity:** the demo `ShieldedPool` is a **depth-4 Merkle tree — 16
 > deposits max**. When full, deposits revert with `Error(Contract, #3)`
