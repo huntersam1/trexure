@@ -11,6 +11,7 @@ export async function resetDb(): Promise<void> {
   await prismaForTest.paymentLeg.deleteMany();
   await prismaForTest.receipt.deleteMany();
   await prismaForTest.payment.deleteMany();
+  await prismaForTest.paymentBatch.deleteMany();
   await prismaForTest.apiKey.deleteMany();
   await prismaForTest.anchorConfig.deleteMany();
   await prismaForTest.viewKey.deleteMany();

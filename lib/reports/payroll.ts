@@ -90,7 +90,7 @@ function claimStateOf(status: string): ClaimState {
   return "unclaimed";
 }
 
-function sumByCurrency(pairs: { currency: string; value: string }[]): CurrencyTotal[] {
+export function sumByCurrency(pairs: { currency: string; value: string }[]): CurrencyTotal[] {
   const acc = new Map<string, Prisma.Decimal>();
   for (const { currency, value } of pairs) {
     if (!currency || !value) continue;
