@@ -170,6 +170,7 @@ model Payment {
   receipt           Receipt?
   notifications     Notification[]
   claimLink         ClaimLink?
+  disclosureLink    DisclosureLink?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -201,6 +202,29 @@ model ClaimLink {
   createdAt     DateTime  @default(now())
 
   @@index([paymentId])
+}
+
+// Verifiable disclosure link (#128, builds on R2 #101 / R4 #103). An ADMIN mints
+// a tokenized, no-login share link for ONE settled payment; an outside auditor
+// opens `/verify/<token>` and sees only that payment's attestation and can
+// re-verify it on-chain. We persist only `sha256(rawToken)` (the raw token lives
+// in the shared URL, never in the DB), plus expiry + revocation so access is
+// bounded and auditable. One active link per payment (re-issue rotates the
+// token, invalidating the old URL). Tenant-scoped via its own tenantId.
+model DisclosureLink {
+  id              String    @id @default(cuid())
+  paymentId       String    @unique
+  payment         Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tokenHash       String    @unique // sha256(rawToken) — lookup key; the token itself is never stored
+  createdByUserId String
+  expiresAt       DateTime
+  revokedAt       DateTime? // set on explicit revoke; a revoked link renders the safe invalid state
+  viewCount       Int       @default(0)
+  lastViewedAt    DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 // In-app claim notification (#82, follow-up to batch epic #80). When a batch

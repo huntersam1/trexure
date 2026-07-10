@@ -8,6 +8,7 @@ import { PaymentLifecycle } from "@/components/lifecycle/PaymentLifecycle";
 import { DemoReplayController } from "@/components/demo/DemoReplayController";
 import { RetryReconcileButton } from "@/components/payments/RetryReconcileButton";
 import { VerifyProofButton } from "@/components/zk/VerifyProofButton";
+import { ShareDisclosureButton } from "@/components/payments/ShareDisclosureButton";
 import { Icon } from "@/components/ui/Icon";
 import { SAMPLE_INTENT_ID } from "@/lib/demo/replay";
 
@@ -67,6 +68,7 @@ export default async function PaymentDetailPage({
             <Icon name="data_object" className="text-[18px]" />
             JSON
           </a>
+          <ShareDisclosureButton paymentId={payment.id} csrfToken={csrfToken} />
         </div>
       )}
       <PaymentLifecycle payment={payment} initialReceipt={receipt} csrfToken={csrfToken} />
