@@ -5,6 +5,39 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Verifiable Disclosure Link — no-login, live-verifying auditor proof — #128
+
+The external half of R2 (#101) / R4 (#103): those produce documents the tenant
+downloads and hands over; this produces a **live, independently-verifiable link**
+an outsider opens with no login and re-verifies against testnet. Closes the
+"tokenized read-only link" R4 explicitly deferred (now that the app is deployed).
+
+- **Token model** — new `DisclosureLink` (`prisma/schema.prisma`, migration
+  `add_disclosure_link`): one active link per payment, persisting only
+  `sha256(rawToken)` (raw token lives in the shared URL, never in the DB), with
+  `expiresAt` + `revokedAt`. Registered in `DIRECT_TENANT_MODELS` (`lib/db.ts`).
+- **Library** — `lib/reports/disclosure-link.ts`: `createDisclosureLink`
+  (mint/rotate; reuses `buildAttestation` to enforce tenant-ownership + SETTLED
+  before minting), `resolveDisclosureLink` (public; returns the R4 attestation or
+  a uniform `invalid`), `verifyDisclosureOnChain` (loads the tenant view key,
+  runs the real Groth16/Soroban check, zeroizes), `revokeDisclosureLink`.
+- **Mint/revoke API** — `POST`/`DELETE /api/payments/[id]/disclosure-link`
+  (ADMIN + CSRF); the raw token is returned once.
+- **Public page** — `app/verify/[token]/page.tsx` (no session, `noindex`) renders
+  only that one payment's attestation + issuer-signature validity, with a
+  "Verify on-chain" button (`VerifyOnChain.tsx` → `POST /api/verify/[token]`,
+  rate-limited per IP). Expired/revoked/unknown tokens all render an identical
+  safe "link is no longer valid" state.
+- **UI** — "Share verifiable link" on the settled-payment detail
+  (`components/payments/ShareDisclosureButton.tsx`).
+- **Auditable** — every issue/view/verify/revoke writes an `AuditLog` row.
+- **Middleware** — `/verify/*` + `/api/verify/*` added to the public allowlist
+  (they authenticate by URL token in-handler).
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm test` green; new tests
+cover token mint→resolve, expired/revoked/unknown refusal, cross-tenant and
+non-settled mint refusal, audit rows, and route ADMIN-gating.
+
 ## Email claim details to off-platform receivers — #81
 
 Follow-up to batch epic **#80** and sibling to the in-app notification (**#82**).

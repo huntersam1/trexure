@@ -7,6 +7,10 @@ const PUBLIC_EXACT = new Set(["/login", "/signup", "/api/auth/login", "/api/auth
 function isPublic(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;
   if (pathname.startsWith("/api/webhooks/")) return true;
+  // Verifiable disclosure links (#128): the no-login auditor page and its
+  // on-chain verify action authenticate by the URL token in their own handlers,
+  // so the tenant session gate must not block them.
+  if (pathname.startsWith("/verify/") || pathname.startsWith("/api/verify/")) return true;
   return false;
 }
 
