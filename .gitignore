@@ -34,3 +34,4 @@ zk/verifier/target/
 # Demo recorder state — bearer notes / recipient wallet addresses. Never commit.
 docs/demo/.batch-notes.json
 docs/demo/.claim-recipient.txt
+.superpowers/
