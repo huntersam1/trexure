@@ -17,12 +17,12 @@ export function Logo({
 }): JSX.Element {
   return (
     <span className={`flex items-center gap-3 ${className}`}>
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-on-surface p-1.5 shadow-sm">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white p-1 shadow-sm ring-1 ring-black/5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/logo.jpg"
+          src="/logo.png"
           alt={wordmark ? "" : "Trexure"}
-          className="h-full w-full object-contain brightness-0 invert"
+          className="h-full w-full object-contain"
         />
       </span>
       {wordmark && (

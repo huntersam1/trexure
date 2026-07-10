@@ -10,7 +10,9 @@ describe("Logo (#115)", () => {
   it("renders the brand mark image and wordmark by default", () => {
     render(<Logo />);
     const img = document.querySelector("img");
-    expect(img?.getAttribute("src")).toBe("/logo.jpg");
+    // Full-color PNG (transparent), rendered without the flattening filter.
+    expect(img?.getAttribute("src")).toBe("/logo.png");
+    expect(img?.className).not.toContain("brightness-0");
     // Decorative when the wordmark carries the name.
     expect(img?.getAttribute("alt")).toBe("");
     expect(screen.getByText("Trexure")).not.toBeNull();
