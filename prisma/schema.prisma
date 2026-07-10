@@ -169,6 +169,7 @@ model Payment {
   legs              PaymentLeg[]
   receipt           Receipt?
   notifications     Notification[]
+  claimLink         ClaimLink?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -176,6 +177,30 @@ model Payment {
   @@index([tenantId, createdAt])
   @@index([batchId])
   @@index([receiverId])
+}
+
+// Emailed claim link (#81, follow-up to batch epic #80). For an OFF-platform
+// receiver (email given but no Trexure account — so #82's in-app notification
+// couldn't reach them), batch send emails a signed one-time link instead of the
+// raw bearer note. The note is stored here **encrypted under a key derived from
+// the raw link token** (which lives only in the email, never in the DB), so a DB
+// read alone can't reveal it; it's decrypted only after the receiver
+// authenticates and presents the token. One link per disbursement.
+model ClaimLink {
+  id            String    @id @default(cuid())
+  paymentId     String    @unique
+  payment       Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique // sha256(rawToken) — lookup key; the token itself is never stored
+  encryptedNote Bytes // AES-256-GCM(note) under sha256("…v1:" + rawToken)
+  noteNonce     Bytes
+  email         String // where the link was sent
+  sentAt        DateTime? // provider accepted the message
+  providerRef   String? // email provider message id (mock or real)
+  revealedAt    DateTime? // first successful authenticated reveal
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+
+  @@index([paymentId])
 }
 
 // In-app claim notification (#82, follow-up to batch epic #80). When a batch

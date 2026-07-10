@@ -24,8 +24,14 @@ const inputCls =
   "w-full rounded-lg bg-surface-container-low border border-outline-variant px-3.5 py-2.5 text-body-md text-on-surface placeholder:text-on-surface-variant/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 const labelCls = "text-label-mono uppercase tracking-widest text-on-surface-variant/70";
 
-export function ClaimForm({ csrfToken }: { csrfToken: string }): JSX.Element {
-  const [note, setNote] = useState("");
+export function ClaimForm({
+  csrfToken,
+  initialNote = "",
+}: {
+  csrfToken: string;
+  initialNote?: string;
+}): JSX.Element {
+  const [note, setNote] = useState(initialNote);
   const [method, setMethod] = useState<Method>("wallet");
   const [address, setAddress] = useState("");
   const [bankCode, setBankCode] = useState("");

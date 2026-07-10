@@ -1,16 +1,24 @@
 import type { JSX } from "react";
+import type { Route } from "next";
 import { redirect, notFound } from "next/navigation";
 
 import { env } from "@/lib/env";
 import { getReceiver } from "@/lib/receiver/session";
+import { sanitizeNext } from "@/lib/receiver/safe-next";
 import { ReceiverAuthForm } from "./ReceiverAuthForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReceiverLoginPage(): Promise<JSX.Element> {
+export default async function ReceiverLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}): Promise<JSX.Element> {
   if (!env.ENABLE_POOL_RAIL) notFound();
+  const { next } = await searchParams;
+  const safeNext = sanitizeNext(next);
   const receiver = await getReceiver();
-  if (receiver) redirect("/claim");
+  if (receiver) redirect(safeNext as Route);
 
   return (
     <div className="mx-auto w-full max-w-md">
@@ -21,7 +29,7 @@ export default async function ReceiverLoginPage(): Promise<JSX.Element> {
             Log in or create a receiver account to claim a payment you were sent.
           </p>
         </div>
-        <ReceiverAuthForm />
+        <ReceiverAuthForm next={safeNext} />
       </div>
       <p className="mt-4 text-body-sm text-on-surface-variant text-center">
         A note (<span className="font-mono">trexure-note-v1-…</span>) is a bearer credential — only

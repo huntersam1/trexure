@@ -2,11 +2,13 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import type { Route } from "next";
 
 import { createReceiverSession } from "@/lib/receiver/session";
 import { registerReceiver, verifyReceiverCredentials } from "@/lib/receiver/auth";
 import { issueCsrfToken, CSRF_COOKIE_NAME, assertSameOrigin } from "@/lib/auth/csrf";
 import { AppError } from "@/lib/http/problem";
+import { sanitizeNext } from "@/lib/receiver/safe-next";
 import { receiverLoginSchema, receiverRegisterSchema } from "@/lib/validation/receiver";
 
 export type ReceiverAuthState = { error: string | null };
@@ -26,6 +28,7 @@ export async function receiverAuthAction(
   if (!assertSameOrigin(h)) return { error: GENERIC };
 
   const intent = formData.get("intent");
+  const next = sanitizeNext(formData.get("next")?.toString());
   const raw = { email: formData.get("email"), password: formData.get("password") };
 
   let receiverId: string;
@@ -65,5 +68,5 @@ export async function receiverAuthAction(
     path: "/",
   });
 
-  redirect("/claim");
+  redirect(next as Route);
 }

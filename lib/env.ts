@@ -56,6 +56,12 @@ const EnvSchema = z.object({
   ANCHOR_PROVIDER: z.enum(["mock-anchor", "xendit"]),
   ANCHOR_CALLBACK_TOKEN: z.string().min(1),
   ENABLE_MOCK_ANCHOR: boolFromString,
+  // Email delivery for batch claim links (#81). Mirrors the anchor mock|real
+  // toggle: "mock" logs + records the message (CI stays offline); "resend" is a
+  // NotImplemented stub until a real provider is wired. Both default so no new
+  // env var is required to run/deploy.
+  EMAIL_PROVIDER: z.enum(["mock", "resend"]).default("mock"),
+  EMAIL_FROM: z.string().min(1).default("Trexure <noreply@trexure.example>"),
   // Gate for brand-new payment submission (#32). Defaults ON now that the
   // shielded_transfer contract is deployed (#31/#36) and the create→SETTLED
   // loop runs end-to-end on testnet (#40). Set "false" as a deploy-time kill
