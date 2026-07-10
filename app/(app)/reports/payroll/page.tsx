@@ -7,6 +7,8 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { parseDateRange, toDateInput, rangeLabel } from "@/lib/reports/scope";
 import { buildPayrollRegister } from "@/lib/reports/payroll";
+import { buildPayrollFlow } from "@/lib/reports/payroll-flow";
+import { PayrollFlowMap } from "@/components/reports/PayrollFlowMap";
 import { Icon } from "@/components/ui/Icon";
 import { PayrollControls } from "./PayrollControls";
 
@@ -41,6 +43,7 @@ export default async function PayrollPage({
   const range = batchId ? null : parseDateRange(sp.from ?? null, sp.to ?? null);
 
   const register = await buildPayrollRegister(user.tenantId, { batchId, range });
+  const flow = buildPayrollFlow(register);
   const rows = register.batches.flatMap((b) => b.rows);
 
   const from = range ? toDateInput(range.from) : "";
@@ -66,6 +69,8 @@ export default async function PayrollPage({
       </div>
 
       <PayrollControls batchId={batchId ?? undefined} from={from} to={to} />
+
+      <PayrollFlowMap flow={flow} scopedBatchId={batchId} />
 
       <section className="flex flex-col gap-stack-md">
         <div className="flex items-center justify-between">
