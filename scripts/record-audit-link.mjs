@@ -1,9 +1,12 @@
-// Payroll register showcase — focus on the Disbursement / Payroll Register:
-// trace the disbursement flow map (Treasury → batch → wallet / bank / pending /
-// failed → receiver), then scroll down through the seeded register table.
-// Needs `pnpm dev` running + a seeded DB.
+// Verifiable Disclosure Link recorder (#128) — the "private to the world,
+// provable to your auditor" moment: an ADMIN mints a share link for one settled
+// payment, then (cookies cleared → logged out) an outside auditor opens
+// /verify/<token>, sees only that payment, and verifies the proof on-chain.
 //
-// Usage: SEED_ADMIN_PASSWORD=... node scripts/record-reports.mjs [out.mp4]
+// Needs `pnpm dev` running + a seeded DB. PAYMENT_ID must be a SETTLED payment
+// the admin owns (pick one from the seed).
+//
+// Usage: SEED_ADMIN_PASSWORD=... PAYMENT_ID=... node scripts/record-audit-link.mjs [out.mp4]
 import { chromium } from "playwright";
 import ffmpegPath from "ffmpeg-static";
 import { execFileSync } from "node:child_process";
@@ -14,16 +17,15 @@ import path from "node:path";
 const BASE = process.env.DEMO_BASE_URL || "http://localhost:3000";
 const USERNAME = process.env.SEED_ADMIN_USERNAME || "admin";
 const PASSWORD = process.env.SEED_ADMIN_PASSWORD;
-const OUT_FILE = path.resolve(process.argv[2] || "docs/demo/trexure-reports.mp4");
+const PAYMENT_ID = process.env.PAYMENT_ID;
+const OUT_FILE = path.resolve(process.argv[2] || "docs/demo/trexure-audit-link.mp4");
 if (!PASSWORD) throw new Error("SEED_ADMIN_PASSWORD env var required");
+if (!PAYMENT_ID) throw new Error("PAYMENT_ID env var required (a SETTLED payment id)");
 
-// Wide range so every batch is in scope (the demo seed spans ~May–Jul 2026).
-const RANGE = "from=2026-05-01&to=2026-07-31";
-
-const rawDir = fs.mkdtempSync(path.join(os.tmpdir(), "trexure-reports-"));
+const rawDir = fs.mkdtempSync(path.join(os.tmpdir(), "trexure-audit-"));
 const pause = (page, ms) => page.waitForTimeout(ms);
 
-async function smoothScroll(page, px, steps = 26, delay = 45) {
+async function smoothScroll(page, px, steps = 24, delay = 45) {
   const per = px / steps;
   for (let i = 0; i < steps; i++) {
     await page.mouse.wheel(0, per);
@@ -37,6 +39,7 @@ const context = await browser.newContext({
   recordVideo: { dir: rawDir, size: { width: 1920, height: 1080 } },
 });
 
+// Red click-ripple so viewers can follow the cursor.
 await context.addInitScript(() => {
   addEventListener(
     "mousedown",
@@ -71,7 +74,7 @@ const t0 = Date.now();
 const mark = (label) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s] ${label}`);
 
 try {
-  // --- Login ---
+  // --- Login as the paying company's admin ---
   await page.goto(`${BASE}/login`);
   await page.getByLabel("Username").waitFor();
   await pause(page, 700);
@@ -83,27 +86,33 @@ try {
   await pause(page, 900);
   mark("logged in");
 
-  // --- Disbursement / Payroll Register ---
-  await page.goto(`${BASE}/reports/payroll?${RANGE}`);
-  await page.getByRole("heading", { name: "Disbursement / Payroll Register" }).waitFor({ timeout: 15000 });
+  // --- Open a settled payment and mint a verifiable disclosure link ---
+  await page.goto(`${BASE}/payments/${PAYMENT_ID}`);
+  await page.getByRole("button", { name: /Share verifiable link/i }).waitFor({ timeout: 15000 });
   await pause(page, 1600);
+  await page.getByRole("button", { name: /Share verifiable link/i }).scrollIntoViewIfNeeded();
+  await pause(page, 600);
+  await page.getByRole("button", { name: /Share verifiable link/i }).click();
 
-  // --- Trace the flow map: Treasury → batches → destinations → receivers ---
-  await page.getByRole("heading", { name: "Disbursement flow" }).scrollIntoViewIfNeeded();
-  await pause(page, 2400); // hold on Treasury + the collapsed batch pills (destination dots)
+  const urlInput = page.locator("input[readonly]").first();
+  await urlInput.waitFor({ timeout: 15000 });
+  await pause(page, 1800); // hold on the revealed link
+  const verifyUrl = await urlInput.inputValue();
+  mark(`minted link: ${verifyUrl.replace(/verify\/.*/, "verify/<token>")}`);
 
-  // Expand a batch so its wallet / bank / pending / failed groups and the
-  // receiver leaves fan out — the connectors draw the trace.
-  await page.getByRole("button", { name: /Batch/ }).first().click();
-  await pause(page, 3200); // let the eye follow Treasury → batch → group → receiver
-  mark("flow map traced");
+  // --- Become the auditor: no account. Clear the session and open the link. ---
+  await context.clearCookies();
+  await page.goto(verifyUrl);
+  await page.getByRole("heading", { name: "Proof of payment" }).waitFor({ timeout: 15000 });
+  await pause(page, 2200); // read the disclosed payment + "issuer signature valid"
+  await smoothScroll(page, 360);
+  await pause(page, 1600); // on-chain proof section
 
-  // --- Scroll down into the seeded register (stat cards + disbursements) ---
-  await smoothScroll(page, 520);
-  await pause(page, 1600);
-  await smoothScroll(page, 680);
-  await pause(page, 2400);
-  mark("register");
+  // --- Verify the proof live on Stellar testnet ---
+  await page.getByRole("button", { name: /Verify on-chain/i }).click();
+  await page.getByText(/Verified on Stellar testnet/i).waitFor({ timeout: 45000 });
+  await pause(page, 2600); // hold on the green ✓
+  mark("verified on-chain");
 } finally {
   await page.close();
   await context.close();
@@ -125,4 +134,4 @@ execFileSync(ffmpegPath, [
   OUT_FILE,
 ]);
 fs.rmSync(rawDir, { recursive: true, force: true });
-console.log("Payroll/flow-map demo written to", OUT_FILE);
+console.log("Audit-link demo written to", OUT_FILE);
