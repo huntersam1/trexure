@@ -135,4 +135,35 @@ describe("createPoolBatch", () => {
     expect(notifs).toHaveLength(1);
     expect(onP.ok && notifs[0]!.paymentId).toBe(onP.ok ? onP.paymentId : undefined);
   });
+
+  it("emails a claim link to an off-platform receiver only, storing ciphertext (#81)", async () => {
+    const res = await createPoolBatch(TENANT, USER, {
+      receivers: [
+        { amount: 4, ref: "OnPlatform", email: RECEIVER_EMAIL }, // has an account → in-app, no email
+        { amount: 6, ref: "OffPlatform", email: "nobody@example.com" }, // no account → emailed
+        { amount: 8, ref: "NoEmail" }, // no email → neither
+      ],
+    });
+
+    const onP = res.results.find((r) => r.ref === "OnPlatform")!;
+    const offP = res.results.find((r) => r.ref === "OffPlatform")!;
+    const noEmail = res.results.find((r) => r.ref === "NoEmail")!;
+    // Routing: on-platform → in-app (not emailed); off-platform → emailed; none → neither.
+    expect(onP.ok && onP.notifiedInApp).toBe(true);
+    expect(onP.ok && onP.emailedClaim).toBe(false);
+    expect(offP.ok && offP.emailedClaim).toBe(true);
+    expect(offP.ok && offP.notifiedInApp).toBe(false);
+    expect(noEmail.ok && noEmail.emailedClaim).toBe(false);
+
+    // A ClaimLink exists only for the off-platform row, holding ciphertext (not the note).
+    if (offP.ok) {
+      const link = await prisma.claimLink.findUniqueOrThrow({ where: { paymentId: offP.paymentId } });
+      expect(link.email).toBe("nobody@example.com");
+      expect(link.sentAt).not.toBeNull();
+      expect(Buffer.from(link.encryptedNote).toString("utf8")).not.toContain(offP.note);
+    }
+    if (onP.ok) {
+      expect(await prisma.claimLink.findUnique({ where: { paymentId: onP.paymentId } })).toBeNull();
+    }
+  });
 });

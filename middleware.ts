@@ -72,9 +72,15 @@ export function middleware(req: NextRequest): NextResponse {
     const needsReceiver =
       !pathname.startsWith("/api/") && !RECEIVER_PUBLIC_EXACT.has(pathname);
     if (needsReceiver && !hasReceiverSession) {
+      // Preserve the full path + query so an emailed claim link (#81,
+      // /claim/access?t=…) survives the login round-trip. Rebuild the query
+      // cleanly so the original params (e.g. the token) don't leak onto the
+      // login URL alongside `next`.
+      const target = pathname + req.nextUrl.search;
       const url = req.nextUrl.clone();
       url.pathname = "/claim/login";
-      url.searchParams.set("next", pathname);
+      url.search = "";
+      url.searchParams.set("next", target);
       res = NextResponse.redirect(url);
     } else {
       const requestHeaders = new Headers(req.headers);

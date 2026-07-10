@@ -67,6 +67,15 @@ describe("middleware", () => {
     expect(res.headers.get("location")).toContain("/claim/login");
   });
 
+  it("preserves the full path + query in `next` so an emailed claim link survives login (#81)", () => {
+    const res = middleware(req("/claim/access?t=SECRET_TOKEN"));
+    expect(res.status).toBe(307);
+    const loc = res.headers.get("location")!;
+    // next carries the token (URL-encoded); it must not leak as a bare ?t= on the login URL.
+    expect(loc).toContain("next=%2Fclaim%2Faccess%3Ft%3DSECRET_TOKEN");
+    expect(new URL(loc).searchParams.get("t")).toBeNull();
+  });
+
   it("does NOT accept a tenant session for the receiver area (isolation)", () => {
     const res = middleware(req("/claim", { cookie: true }));
     expect(res.status).toBe(307);

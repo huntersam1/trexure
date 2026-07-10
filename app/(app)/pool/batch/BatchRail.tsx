@@ -22,6 +22,8 @@ type ReceiverResult =
       claimUrl: string;
       poolContractId: string;
       deposit: { txHash: string; explorerUrl: string };
+      notifiedInApp: boolean;
+      emailedClaim: boolean;
     }
   | { ok: false; ref: string; email: string | null; amount: number; error: string };
 
@@ -233,6 +235,18 @@ export function BatchRail({ csrfToken }: { csrfToken: string }): JSX.Element {
                     <span className="font-medium">{r.ref}</span>
                     <span className="text-on-surface-variant">· {r.amount} XLM</span>
                     {r.email && <span className="text-on-surface-variant">· {r.email}</span>}
+                    {r.ok && r.notifiedInApp && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-outline-variant px-2 py-0.5 text-[11px] text-on-surface-variant">
+                        <Icon name="notifications" className="text-[13px]" />
+                        Notified in app
+                      </span>
+                    )}
+                    {r.ok && r.emailedClaim && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-outline-variant px-2 py-0.5 text-[11px] text-on-surface-variant">
+                        <Icon name="mail" className="text-[13px]" />
+                        Emailed
+                      </span>
+                    )}
                   </div>
                   {r.ok && <TxLink url={r.deposit.explorerUrl} hash={r.deposit.txHash} label="deposit" />}
                 </div>
