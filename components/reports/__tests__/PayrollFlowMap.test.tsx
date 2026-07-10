@@ -27,6 +27,7 @@ const FLOW: PayrollFlow = {
       createdByUsername: "payroll-admin",
       count: 2,
       totalSourceAmount: "30",
+      totals: [{ currency: "XLM", total: "30" }],
       claimed: 1,
       unclaimed: 1,
       failed: 0,
@@ -70,6 +71,7 @@ const FLOW: PayrollFlow = {
       createdByUsername: "payroll-admin",
       count: 1,
       totalSourceAmount: "15",
+      totals: [{ currency: "XLM", total: "15" }],
       claimed: 0,
       unclaimed: 0,
       failed: 1,
@@ -136,6 +138,16 @@ describe("PayrollFlowMap", () => {
   it("shows a tooltip with the claim breakdown on the batch pill", () => {
     render(<PayrollFlowMap flow={FLOW} scopedBatchId={null} />);
     expect(screen.getByText(/1 claimed · 1 unclaimed · 0 failed/)).not.toBeNull();
+  });
+
+  it("re-seeds scoped auto-expand when remounted via a changed key", () => {
+    // The page passes key={batchId ?? "range"} so a soft navigation that
+    // changes scope remounts the map and the scoped batch auto-expands.
+    const { rerender } = render(<PayrollFlowMap key="range" flow={FLOW} scopedBatchId={null} />);
+    expect(screen.queryByText("Dave")).toBeNull();
+
+    rerender(<PayrollFlowMap key="b2" flow={FLOW} scopedBatchId="b2" />);
+    expect(screen.getByText("Dave").closest("a")?.getAttribute("href")).toBe("/pool/batches/b2/p3");
   });
 
   it("renders an empty note when there are no batches", () => {

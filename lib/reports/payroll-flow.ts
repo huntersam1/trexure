@@ -38,6 +38,7 @@ export type FlowBatch = {
   createdByUsername: string;
   count: number;
   totalSourceAmount: string;
+  totals: CurrencyTotal[];
   claimed: number;
   unclaimed: number;
   failed: number;
@@ -111,6 +112,7 @@ function flowBatchOf(b: PayrollBatchGroup, generatedAt: string): FlowBatch {
     createdByUsername: b.createdByUsername,
     count: b.count,
     totalSourceAmount: b.totalSourceAmount,
+    totals: sumByCurrency(b.rows.map((r) => ({ currency: r.sourceAsset, value: r.sourceAmount }))),
     claimed: b.claimed,
     unclaimed: b.unclaimed,
     failed: b.failed,

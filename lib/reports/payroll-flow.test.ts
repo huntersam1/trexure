@@ -181,4 +181,22 @@ describe("buildPayrollFlow", () => {
   it("returns an empty batch list for an empty register", () => {
     expect(buildPayrollFlow(register([])).batches).toEqual([]);
   });
+
+  it("sums batch.totals by currency across all destination groups", () => {
+    const reg = register([
+      batch([
+        row({ paymentId: "p1", sourceAmount: "10" }),
+        row({ paymentId: "p2", receiver: "Erin", sourceAmount: "5.5" }),
+        row({
+          paymentId: "p3",
+          receiver: "Frank",
+          sourceAmount: "15",
+          claimState: "unclaimed",
+          status: "PENDING",
+        }),
+      ]),
+    ]);
+    const b = buildPayrollFlow(reg).batches[0]!;
+    expect(b.totals).toEqual([{ currency: "XLM", total: "30.5" }]);
+  });
 });

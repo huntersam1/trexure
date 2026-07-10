@@ -11,8 +11,9 @@ import { connectorPath, leftAnchor, rightAnchor } from "./flow-geometry";
  * Interactive flow map for the payroll register: Treasury → batch pills →
  * destination groups → receiver leaves. Nodes are plain HTML; connectors are
  * one absolutely-positioned SVG layer measured from node refs. Batches start
- * collapsed except the explicitly scoped one. The map renders only fields the
- * register table below it already shows.
+ * collapsed except the explicitly scoped one. The map renders only fields
+ * already exported by this ADMIN-gated register — its table plus its CSV/PDF
+ * exports.
  */
 
 const DEST_META: Record<FlowDestType, { label: string; dot: string; border: string; text: string }> = {
@@ -159,7 +160,7 @@ export function PayrollFlowMap({
           >
             <p className="font-geist text-body-lg font-bold text-on-primary">Treasury</p>
             <p className="text-label-mono text-on-primary/80">
-              {flow.disbursementCount} disbursements
+              {flow.disbursementCount} disbursement{flow.disbursementCount === 1 ? "" : "s"}
               {flow.totals.length > 0 ? ` · ${totalsLabel(flow.totals)}` : ""}
             </p>
           </div>
@@ -224,7 +225,7 @@ function BatchRow({
             </span>
           </span>
           <span className="block pl-5 text-label-mono text-on-surface-variant">
-            {batch.count} · {batch.totalSourceAmount} XLM · {batch.createdAt.slice(0, 10)}
+            {batch.count} · {totalsLabel(batch.totals)} · {batch.createdAt.slice(0, 10)}
           </span>
         </button>
         <Tooltip>
@@ -248,7 +249,12 @@ function BatchRow({
                       className="inline-flex items-baseline gap-2 rounded-lg px-2 py-1 hover:bg-surface-container-highest"
                     >
                       <Dot type={g.type} />
-                      <span className="font-mono text-body-sm text-on-surface">{leaf.receiver}</span>
+                      <span
+                        className="min-w-0 truncate max-w-[14rem] font-mono text-body-sm text-on-surface"
+                        title={leaf.receiver}
+                      >
+                        {leaf.receiver}
+                      </span>
                       <span className="font-mono text-body-sm text-on-surface-variant">{leaf.amount}</span>
                       <span className="font-mono text-label-mono text-on-surface-variant">{leaf.detail}</span>
                     </Link>

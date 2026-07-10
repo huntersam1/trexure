@@ -70,7 +70,7 @@ export default async function PayrollPage({
 
       <PayrollControls batchId={batchId ?? undefined} from={from} to={to} />
 
-      <PayrollFlowMap flow={flow} scopedBatchId={batchId} />
+      <PayrollFlowMap key={batchId ?? "range"} flow={flow} scopedBatchId={batchId} />
 
       <section className="flex flex-col gap-stack-md">
         <div className="flex items-center justify-between">
