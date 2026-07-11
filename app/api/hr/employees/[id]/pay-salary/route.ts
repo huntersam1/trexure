@@ -51,12 +51,28 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       salaryPaymentId = row.paymentId;
     }
 
-    const repaid = await settleAdvancesForPayout(
-      session.tenantId,
-      id,
-      new Prisma.Decimal(payout.deduction),
-      salaryPaymentId,
-    );
+    let repaid;
+    try {
+      repaid = await settleAdvancesForPayout(
+        session.tenantId,
+        id,
+        new Prisma.Decimal(payout.deduction),
+        salaryPaymentId,
+      );
+    } catch (settleErr) {
+      // The net salary was already paid but the advances did NOT settle. Surface
+      // this loudly with the payout id + employee so it can be reconciled — a
+      // silent failure here would re-deduct the same advances next cycle.
+      logger.error(
+        { err: settleErr, employeeId: id, salaryPaymentId, deduction: payout.deduction },
+        "salary paid but advance settlement failed — reconcile before re-running pay-salary",
+      );
+      return problem(
+        500,
+        "Settlement failed",
+        "Salary was paid but advance settlement failed and has been logged for reconciliation. Do not re-run pay-salary for this employee until it is resolved.",
+      );
+    }
 
     return NextResponse.json(
       {

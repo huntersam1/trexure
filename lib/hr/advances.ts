@@ -132,6 +132,22 @@ async function outstandingTotal(db: ReturnType<typeof forTenant>, employeeId: st
   return rows.reduce((a, r) => a.plus(r.outstanding), new D(0));
 }
 
+/** Pure accrual/eligibility math over already-fetched base + outstanding. */
+function deriveEligibility(
+  base: Prisma.Decimal,
+  outstanding: Prisma.Decimal,
+  policy: AdvancePolicyView,
+  asOf: Date,
+): { accrued: Prisma.Decimal; maxAdvanceable: Prisma.Decimal; eligible: Prisma.Decimal } {
+  const day = asOf.getUTCDate();
+  const daysInMonth = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() + 1, 0)).getUTCDate();
+  const accrued = round(base.mul(day).div(daysInMonth));
+  let maxAdvanceable = round(accrued.mul(policy.maxPercentAccrued).div(100));
+  if (policy.perCycleCap && maxAdvanceable.gt(policy.perCycleCap)) maxAdvanceable = new D(policy.perCycleCap);
+  const eligible = D.max(new D(0), maxAdvanceable.sub(outstanding));
+  return { accrued, maxAdvanceable, eligible };
+}
+
 export async function computeEligibility(
   tenantId: string,
   employeeId: string,
@@ -140,16 +156,8 @@ export async function computeEligibility(
   const db = forTenant(tenantId);
   const policy = await getAdvancePolicy(tenantId);
   const { base, currency } = await monthlyBase(db, employeeId);
-
-  const day = asOf.getUTCDate();
-  const daysInMonth = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() + 1, 0)).getUTCDate();
-  const accrued = round(base.mul(day).div(daysInMonth));
-
-  let maxAdvanceable = round(accrued.mul(policy.maxPercentAccrued).div(100));
-  if (policy.perCycleCap && maxAdvanceable.gt(policy.perCycleCap)) maxAdvanceable = new D(policy.perCycleCap);
-
   const outstanding = await outstandingTotal(db, employeeId);
-  const eligible = D.max(new D(0), maxAdvanceable.sub(outstanding));
+  const { accrued, maxAdvanceable, eligible } = deriveEligibility(base, outstanding, policy, asOf);
 
   return {
     monthlyBase: base.toString(),
@@ -197,27 +205,43 @@ export async function requestAdvance(
 ): Promise<AdvanceView> {
   const db = forTenant(tenantId);
   const amount = new D(input.amount);
-  const elig = await computeEligibility(tenantId, input.employeeId, asOf);
-  if (amount.gt(elig.eligible)) {
-    throw new AppError(400, "Over limit", `Eligible for at most ${elig.eligible} this cycle.`);
-  }
   const policy = await getAdvancePolicy(tenantId);
   const fee = round(amount.mul(policy.feePercent).div(100));
-  const outstanding = amount.plus(fee);
+  const reserve = amount.plus(fee);
   const autoApprove = policy.autoApproveUnder != null && amount.lte(new D(policy.autoApproveUnder));
 
-  const created = await db.salaryAdvance.create({
-    data: {
-      tenantId,
-      employeeId: input.employeeId,
-      amount: amount.toString(),
-      fee: fee.toString(),
-      outstanding: outstanding.toString(),
-      currency: elig.currency,
-      status: autoApprove ? "APPROVED" : "REQUESTED",
-      approvedAt: autoApprove ? asOf : null,
-      createdByUserId: userId,
-    },
+  // Recompute eligibility from the current aggregate and create in ONE
+  // transaction, so two concurrent requests can't both pass the eligibility
+  // check and commit the employee past the earned-wage cap.
+  const created = await db.$transaction(async (tx) => {
+    const item = await tx.packageItem.findFirst({
+      where: { type: "BASE_SALARY", package: { employeeId: input.employeeId, supersededAt: null } },
+    });
+    const base =
+      item?.amount == null ? new D(0) : round(item.cadence === "ANNUAL" ? item.amount.div(12) : item.amount);
+    const currency = item?.currency ?? "XLM";
+    const rows = await tx.salaryAdvance.findMany({
+      where: { employeeId: input.employeeId, status: { in: NON_REPAID } },
+      select: { outstanding: true },
+    });
+    const outstanding = rows.reduce((a, r) => a.plus(r.outstanding), new D(0));
+    const { eligible } = deriveEligibility(base, outstanding, policy, asOf);
+    if (amount.gt(eligible)) {
+      throw new AppError(400, "Over limit", `Eligible for at most ${eligible} this cycle.`);
+    }
+    return tx.salaryAdvance.create({
+      data: {
+        tenantId,
+        employeeId: input.employeeId,
+        amount: amount.toString(),
+        fee: fee.toString(),
+        outstanding: reserve.toString(),
+        currency,
+        status: autoApprove ? "APPROVED" : "REQUESTED",
+        approvedAt: autoApprove ? asOf : null,
+        createdByUserId: userId,
+      },
+    });
   });
   return view(created);
 }

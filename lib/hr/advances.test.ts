@@ -86,6 +86,15 @@ describe("requestAdvance", () => {
     await expect(requestAdvance(TENANT, USER, { employeeId, amount: "300" }, EOM)).rejects.toBeInstanceOf(AppError);
   });
 
+  it("enforces the cumulative cap transactionally — the aggregate is re-read at create time", async () => {
+    await setAdvancePolicy(TENANT, { maxPercentAccrued: 50, feePercent: 0 }); // eligible = 500
+    const employeeId = await employeeWithSalary(TENANT, "cap@acme.test", "1000");
+    // Take it right up to the cap, then any more must fail (recompute inside the tx).
+    await requestAdvance(TENANT, USER, { employeeId, amount: "500" }, EOM);
+    expect((await computeEligibility(TENANT, employeeId, EOM)).eligible).toBe("0");
+    await expect(requestAdvance(TENANT, USER, { employeeId, amount: "1" }, EOM)).rejects.toBeInstanceOf(AppError);
+  });
+
   it("auto-approves under the policy threshold and charges the fee", async () => {
     await setAdvancePolicy(TENANT, { maxPercentAccrued: 50, feePercent: 10, autoApproveUnder: "500" });
     const employeeId = await employeeWithSalary(TENANT, "auto@acme.test", "1000");
