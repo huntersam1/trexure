@@ -27,6 +27,8 @@ const DIRECT_TENANT_MODELS = new Set([
   "PackageItem",
   "ConversionPolicy",
   "PackageConversion",
+  "AdvancePolicy",
+  "SalaryAdvance",
 ]);
 // Models scoped through their parent Payment relation (no own tenantId column).
 const RELATION_TENANT_MODELS = new Set(["PaymentLeg", "Receipt"]);

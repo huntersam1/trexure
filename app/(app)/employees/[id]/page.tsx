@@ -8,9 +8,11 @@ import { cookies } from "next/headers";
 import { requireSession } from "@/lib/auth/session";
 import { getEmployee, type PackageView } from "@/lib/hr/employees";
 import { listConvertibleItems, listConversions } from "@/lib/hr/conversions";
+import { computeEligibility, listAdvances } from "@/lib/hr/advances";
 import { CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
 import { Icon } from "@/components/ui/Icon";
 import { ConversionPanel } from "./ConversionPanel";
+import { AdvancePanel } from "./AdvancePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -73,9 +75,11 @@ export default async function EmployeeDetailPage({
   if (!employee) notFound();
 
   const history = employee.packages.filter((p) => p.supersededAt !== null);
-  const [convertible, conversions] = await Promise.all([
+  const [convertible, conversions, eligibility, advances] = await Promise.all([
     listConvertibleItems(user.tenantId, id),
     listConversions(user.tenantId, id),
+    computeEligibility(user.tenantId, id),
+    listAdvances(user.tenantId, id),
   ]);
   const csrfToken = (await cookies()).get(CSRF_COOKIE_NAME)?.value ?? "";
 
@@ -104,6 +108,13 @@ export default async function EmployeeDetailPage({
           <p className="text-body-sm text-on-surface-variant">No active package.</p>
         )}
       </section>
+
+      <AdvancePanel
+        employeeId={employee.id}
+        eligibility={eligibility}
+        advances={advances}
+        csrfToken={csrfToken}
+      />
 
       <ConversionPanel
         employeeId={employee.id}
