@@ -21,6 +21,10 @@ const DIRECT_TENANT_MODELS = new Set([
   "ViewKey",
   "AuditLog",
   "DisclosureLink",
+  "EmployeeRole",
+  "Employee",
+  "CompensationPackage",
+  "PackageItem",
 ]);
 // Models scoped through their parent Payment relation (no own tenantId column).
 const RELATION_TENANT_MODELS = new Set(["PaymentLeg", "Receipt"]);

@@ -5,6 +5,38 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Employee onboarding: roles, salary, compensation packages — #133
+
+The durable HR data foundation that payroll, salary advance (#134), and
+non-monetary → cash conversion (#135) read from. An ADMIN can onboard an
+employee with a role, base salary, and non-monetary package items; package
+changes are **effective-dated** (a new version supersedes the prior, which is
+retained as auditable history).
+
+- **Models** (`prisma/schema.prisma`, migration `add_employee_onboarding`):
+  `EmployeeRole`, `Employee` (optionally linked to a `Receiver`),
+  `CompensationPackage` (effective-dated; `supersededAt`), `PackageItem`
+  (monetary `amount`/`currency` or non-monetary `notionalValue`, `cadence`, and
+  a `convertible` flag that feeds #135). Enums `EmploymentStatus`,
+  `PackageItemType`, `PayCadence`. All tenant-scoped via a direct `tenantId`
+  and registered in `DIRECT_TENANT_MODELS` (`lib/db.ts`).
+- **Library** — `lib/hr/employees.ts`: Zod-validated `createRole` / `listRoles`,
+  `onboardEmployee` (employee + initial package + items in one create),
+  `listEmployees` / `getEmployee` (current package + full history), and
+  `setPackage` (supersede-then-create versioning). All `forTenant()`-scoped.
+- **API** (ADMIN for mutations, session for reads; CSRF-checked):
+  `GET/POST /api/hr/employees`, `GET /api/hr/employees/[id]`,
+  `POST /api/hr/employees/[id]/package`, `GET/POST /api/hr/roles`.
+- **UI** — `/employees` (list), `/employees/new` (onboard form with a package
+  builder for monetary + non-monetary items), `/employees/[id]` (detail with
+  current package + effective-dated history). New ADMIN "Employees" nav item.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm build` clean; `pnpm test`
+480 (479 pass, 1 skip). New tests cover onboarding (role + salary + non-monetary
+item), effective-dated versioning retaining the prior package, cross-tenant
+isolation, and route ADMIN-gating. Browser-verified end-to-end (onboard →
+persisted → appears in the tenant-scoped list).
+
 ## Verifiable Disclosure Link — no-login, live-verifying auditor proof — #128
 
 The external half of R2 (#101) / R4 (#103): those produce documents the tenant

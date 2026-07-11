@@ -41,6 +41,27 @@ enum LegStatus {
   FAILED
 }
 
+// Employee onboarding / HR (#133). Foundation for salary advance (#134) and
+// non-monetary → cash conversion (#135).
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum PackageItemType {
+  BASE_SALARY
+  BONUS
+  ALLOWANCE
+  BENEFIT_NON_MONETARY
+}
+
+enum PayCadence {
+  MONTHLY
+  ANNUAL
+  ONE_OFF
+}
+
 model Tenant {
   id             String         @id @default(cuid())
   name           String
@@ -80,6 +101,7 @@ model Receiver {
   sessions      ReceiverSession[]
   payments      Payment[]
   notifications Notification[]
+  employees     Employee[] // an employee record (per tenant) may map to this receiver persona (#133)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 }
@@ -332,4 +354,78 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
+}
+
+// --- Employee onboarding / HR (#133) -------------------------------------
+// All tenant-scoped via a direct `tenantId` scalar (no Tenant relation, mirroring
+// AuditLog) and registered in DIRECT_TENANT_MODELS (lib/db.ts) so forTenant()
+// enforces isolation. Foundation the payroll batch path, salary advance (#134),
+// and non-monetary conversion (#135) read from.
+
+model EmployeeRole {
+  id            String     @id @default(cuid())
+  tenantId      String
+  title         String
+  seniorityBand String?
+  employees     Employee[]
+  createdAt     DateTime   @default(now())
+
+  @@unique([tenantId, title])
+  @@index([tenantId])
+}
+
+model Employee {
+  id         String                @id @default(cuid())
+  tenantId   String
+  name       String
+  email      String
+  status     EmploymentStatus      @default(ACTIVE)
+  startDate  DateTime
+  roleId     String?
+  role       EmployeeRole?         @relation(fields: [roleId], references: [id])
+  receiverId String? // links to the claim/wallet/bank persona when one exists
+  receiver   Receiver?             @relation(fields: [receiverId], references: [id])
+  packages   CompensationPackage[]
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([roleId])
+}
+
+// Effective-dated compensation package. A new version supersedes the prior one
+// (sets `supersededAt`) but the prior row is retained, so raises are auditable.
+// The "current" package is the one with `supersededAt = null`.
+model CompensationPackage {
+  id              String        @id @default(cuid())
+  tenantId        String
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  effectiveFrom   DateTime
+  supersededAt    DateTime?
+  createdByUserId String?
+  items           PackageItem[]
+  createdAt       DateTime      @default(now())
+
+  @@index([tenantId])
+  @@index([employeeId, effectiveFrom])
+}
+
+model PackageItem {
+  id            String              @id @default(cuid())
+  tenantId      String
+  packageId     String
+  package       CompensationPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  type          PackageItemType
+  label         String // description; for non-monetary, the described unit/benefit
+  amount        Decimal?            @db.Decimal(38, 8) // monetary items
+  currency      String? // monetary items
+  notionalValue Decimal?            @db.Decimal(38, 8) // non-monetary notional cash value
+  cadence       PayCadence          @default(MONTHLY)
+  convertible   Boolean             @default(false) // feeds non-monetary → cash conversion (#135)
+  createdAt     DateTime            @default(now())
+
+  @@index([tenantId])
+  @@index([packageId])
 }
