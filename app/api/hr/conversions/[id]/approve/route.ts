@@ -7,6 +7,7 @@ import { assertCsrf } from "@/lib/auth/csrf";
 import { approveConversion, markConversionDisbursed } from "@/lib/hr/conversions";
 import { getEmployee } from "@/lib/hr/employees";
 import { createPoolBatch } from "@/lib/pool/batch";
+import { env } from "@/lib/env";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
 
@@ -15,13 +16,20 @@ export const dynamic = "force-dynamic";
 
 /**
  * Approve a conversion and pay out the net cash via the existing pool rail
- * (#80's `createPoolBatch`, single receiver). If the payout fails the conversion
- * stays APPROVED (retryable) rather than being marked disbursed.
+ * (#80's `createPoolBatch`, single receiver). Payout depends on ENABLE_POOL_RAIL,
+ * so guard on it up front (before any state change) rather than failing mid-way.
+ *
+ * If the payout itself fails, the conversion is left APPROVED. It is NOT
+ * re-approvable (this route only approves a REQUESTED conversion); to recover,
+ * reject it — which releases the reserved balance — and re-request.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAdmin();
     assertCsrf(req);
+    if (!env.ENABLE_POOL_RAIL) {
+      return problem(503, "Payout rail disabled", "The pool payout rail is disabled; conversions cannot be paid out here.");
+    }
     const { id } = await ctx.params;
 
     const approved = await approveConversion(session.tenantId, id, session.id);

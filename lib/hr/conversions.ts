@@ -232,44 +232,63 @@ async function loadConversion(db: ReturnType<typeof forTenant>, id: string) {
   return c;
 }
 
+async function requireExists(db: ReturnType<typeof forTenant>, id: string): Promise<void> {
+  const existing = await db.packageConversion.findFirst({ where: { id } });
+  if (!existing) throw new AppError(404, "Conversion not found", "No such conversion for this tenant.");
+}
+
 export async function approveConversion(tenantId: string, id: string, _userId: string): Promise<ConversionView> {
   const db = forTenant(tenantId);
-  const c = await loadConversion(db, id);
-  if (c.status !== "REQUESTED") throw new AppError(409, "Not pending", "Only a requested conversion can be approved.");
-  const updated = await db.packageConversion.update({
-    where: { id },
+  // Atomic compare-and-set: the approve route pays out immediately after, so two
+  // concurrent approvals must not both win (that would double-pay real XLM).
+  const { count } = await db.packageConversion.updateMany({
+    where: { id, status: "REQUESTED" },
     data: { status: "APPROVED", approvedAt: new Date() },
   });
-  return view(updated);
+  if (count === 0) {
+    await requireExists(db, id);
+    throw new AppError(409, "Not pending", "Only a requested conversion can be approved.");
+  }
+  return (await getConversion(tenantId, id))!;
 }
 
 /** Mark an approved conversion disbursed once the payout Payment exists. */
 export async function markConversionDisbursed(tenantId: string, id: string, paymentId: string): Promise<ConversionView> {
   const db = forTenant(tenantId);
-  const c = await loadConversion(db, id);
-  if (c.status !== "APPROVED") throw new AppError(409, "Not approved", "Only an approved conversion can be disbursed.");
-  const updated = await db.packageConversion.update({
-    where: { id },
+  const { count } = await db.packageConversion.updateMany({
+    where: { id, status: "APPROVED" },
     data: { status: "DISBURSED", paymentId, disbursedAt: new Date() },
   });
-  return view(updated);
+  if (count === 0) {
+    await requireExists(db, id);
+    throw new AppError(409, "Not approved", "Only an approved conversion can be disbursed.");
+  }
+  return (await getConversion(tenantId, id))!;
 }
 
-/** Reject a pending/approved conversion and release the reserved balance. */
+/**
+ * Reject a pending/approved conversion and release the reserved balance. The
+ * status flip and the balance decrement run in one interactive transaction and
+ * the decrement only happens if this call wins the flip — so two concurrent
+ * rejects can't double-release the reserved balance.
+ */
 export async function rejectConversion(tenantId: string, id: string, _userId: string): Promise<ConversionView> {
   const db = forTenant(tenantId);
   const c = await loadConversion(db, id);
-  if (c.status === "DISBURSED" || c.status === "REJECTED") {
-    throw new AppError(409, "Cannot reject", "This conversion can no longer be rejected.");
-  }
-  const [, updated] = await db.$transaction([
-    db.packageItem.update({
+  const won = await db.$transaction(async (tx) => {
+    const { count } = await tx.packageConversion.updateMany({
+      where: { id, status: { in: ["REQUESTED", "APPROVED"] } },
+      data: { status: "REJECTED" },
+    });
+    if (count === 0) return false;
+    await tx.packageItem.update({
       where: { id: c.packageItemId },
       data: { convertedValue: { decrement: c.notionalAmount.toString() } },
-    }),
-    db.packageConversion.update({ where: { id }, data: { status: "REJECTED" } }),
-  ]);
-  return view(updated);
+    });
+    return true;
+  });
+  if (!won) throw new AppError(409, "Cannot reject", "This conversion can no longer be rejected.");
+  return (await getConversion(tenantId, id))!;
 }
 
 export async function getConversion(tenantId: string, id: string): Promise<ConversionView | null> {

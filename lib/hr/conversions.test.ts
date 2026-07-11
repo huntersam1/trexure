@@ -143,6 +143,23 @@ describe("lifecycle", () => {
     expect(rejected.status).toBe("REJECTED");
     expect((await listConvertibleItems(TENANT, employeeId))[0]!.remaining).toBe("40000"); // restored
   });
+
+  it("approve is a guarded transition — a second approve 409s (no double-pay)", async () => {
+    const { employeeId, itemId } = await seedEmployeeWithConvertible(TENANT, "guard@acme.test");
+    const conv = await requestConversion(TENANT, employeeId, USER, { packageItemId: itemId, notionalAmount: "5000" });
+    await approveConversion(TENANT, conv.id, USER);
+    await expect(approveConversion(TENANT, conv.id, USER)).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("a disbursed conversion cannot be rejected (balance not double-released)", async () => {
+    const { employeeId, itemId } = await seedEmployeeWithConvertible(TENANT, "disb@acme.test");
+    const conv = await requestConversion(TENANT, employeeId, USER, { packageItemId: itemId, notionalAmount: "5000" });
+    await approveConversion(TENANT, conv.id, USER);
+    await markConversionDisbursed(TENANT, conv.id, "pay_x");
+    await expect(rejectConversion(TENANT, conv.id, USER)).rejects.toBeInstanceOf(AppError);
+    // Reserved balance stays consumed (still 35000 remaining), not released.
+    expect((await listConvertibleItems(TENANT, employeeId))[0]!.remaining).toBe("35000");
+  });
 });
 
 describe("tenant isolation", () => {
