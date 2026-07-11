@@ -3,10 +3,14 @@ import type { JSX } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 
 import { requireSession } from "@/lib/auth/session";
 import { getEmployee, type PackageView } from "@/lib/hr/employees";
+import { listConvertibleItems, listConversions } from "@/lib/hr/conversions";
+import { CSRF_COOKIE_NAME } from "@/lib/auth/csrf";
 import { Icon } from "@/components/ui/Icon";
+import { ConversionPanel } from "./ConversionPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +73,11 @@ export default async function EmployeeDetailPage({
   if (!employee) notFound();
 
   const history = employee.packages.filter((p) => p.supersededAt !== null);
+  const [convertible, conversions] = await Promise.all([
+    listConvertibleItems(user.tenantId, id),
+    listConversions(user.tenantId, id),
+  ]);
+  const csrfToken = (await cookies()).get(CSRF_COOKIE_NAME)?.value ?? "";
 
   return (
     <div className="flex flex-col gap-stack-lg">
@@ -95,6 +104,13 @@ export default async function EmployeeDetailPage({
           <p className="text-body-sm text-on-surface-variant">No active package.</p>
         )}
       </section>
+
+      <ConversionPanel
+        employeeId={employee.id}
+        items={convertible}
+        conversions={conversions}
+        csrfToken={csrfToken}
+      />
 
       {history.length > 0 && (
         <section className="flex flex-col gap-stack-md">
