@@ -5,6 +5,46 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Salary advance / earned wage access — #134
+
+Employees draw against earned-but-unpaid salary; the advance (+fee) is disbursed
+via the existing pool payout rail and then **netted out of a later salary
+payout** and marked repaid. Built on the #133 compensation model; supplies the
+"payroll cycle" the repayment settles against via a per-employee **pay-salary**
+action (a full multi-employee payroll run remains future work).
+
+- **Models** (`prisma/schema.prisma`, migration `add_salary_advance`, additive):
+  `AdvancePolicy` (per-tenant `maxPercentAccrued`, `perCycleCap`, `feePercent`,
+  `autoApproveUnder`) and `SalaryAdvance` (amount/fee/`outstanding`, status,
+  disbursement + repayment payment refs). Enum `AdvanceStatus`. Tenant-scoped via
+  `DIRECT_TENANT_MODELS`.
+- **Library** — `lib/hr/advances.ts`: accrual-based `computeEligibility`
+  (monthly base pro-rated to date × policy − outstanding), `requestAdvance`
+  (auto-approves under the policy threshold, charges the fee), a **guarded**
+  lifecycle (approve/disburse are `updateMany` compare-and-sets so a money
+  movement can't double-run), and `computeSalaryPayout` + `settleAdvancesForPayout`
+  (nets the deduction **FIFO** across outstanding advances, partial/multi-cycle
+  supported, marks each REPAID as its balance clears). All `forTenant()`-scoped.
+- **API** (ADMIN mutations, CSRF; session reads; payout routes guard on
+  `ENABLE_POOL_RAIL`): `GET/POST /api/hr/advances`,
+  `POST /api/hr/advances/[id]/approve` (approves + pays the principal via
+  `createPoolBatch`), `POST /api/hr/advances/[id]/reject`,
+  `GET /api/hr/employees/[id]/advance-eligibility`,
+  `POST /api/hr/employees/[id]/pay-salary` (pays net, then settles advances),
+  `GET/POST /api/hr/advance-policy`.
+- **UI** — an advance panel on the employee detail page: eligibility summary,
+  request advance, approve-&-pay / reject, and a **Run salary payout** action
+  that nets outstanding advances.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm build` clean; `pnpm test`
+511 pass / 1 skip. New tests cover policy, pro-rata eligibility, over-limit +
+auto-approve, guarded transitions, reject-clears-outstanding, full and **partial
+FIFO** repayment netting, and tenant isolation.
+
+_Note:_ payout reuses the pool rail (XLM); large nominal salaries are subject to
+the rail's per-payout testnet cap. Multi-employee automated payroll runs and
+non-XLM currency handling are follow-ups.
+
 ## Convert non-monetary package items into withdrawable money — #135
 
 Liquidates the convertible portion of a compensation package item (from #133)

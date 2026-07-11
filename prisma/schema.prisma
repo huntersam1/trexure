@@ -70,6 +70,15 @@ enum ConversionStatus {
   REJECTED
 }
 
+// Salary advance / earned wage access (#134).
+enum AdvanceStatus {
+  REQUESTED
+  APPROVED
+  DISBURSED
+  REPAID
+  REJECTED
+}
+
 model Tenant {
   id             String         @id @default(cuid())
   name           String
@@ -480,4 +489,42 @@ model PackageConversion {
   @@index([tenantId])
   @@index([employeeId, status])
   @@index([packageItemId])
+}
+
+// --- Salary advance / earned wage access (#134) ---------------------------
+// Employees draw against earned-but-unpaid salary; the advance (+fee) is netted
+// out of a later salary payout and marked repaid. Tenant-scoped (direct
+// `tenantId`, registered in DIRECT_TENANT_MODELS).
+
+// Employer advance policy (one per tenant).
+model AdvancePolicy {
+  id                String   @id @default(cuid())
+  tenantId          String   @unique
+  maxPercentAccrued Decimal  @default(50) @db.Decimal(5, 2) // max % of accrued salary advanceable
+  perCycleCap       Decimal? @db.Decimal(38, 8) // absolute cap per pay cycle
+  feePercent        Decimal  @default(0) @db.Decimal(5, 2) // flat fee on the advanced principal
+  autoApproveUnder  Decimal? @db.Decimal(38, 8) // auto-approve requests at or below this amount
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model SalaryAdvance {
+  id                String        @id @default(cuid())
+  tenantId          String
+  employeeId        String
+  amount            Decimal       @db.Decimal(38, 8) // principal advanced
+  fee               Decimal       @db.Decimal(38, 8) // fee on the principal
+  outstanding       Decimal       @db.Decimal(38, 8) // (amount + fee) − repaid; 0 when REPAID
+  currency          String        @default("XLM")
+  status            AdvanceStatus @default(REQUESTED)
+  paymentId         String? // disbursement Payment (advance paid out)
+  repaidByPaymentId String? // the salary Payment that netted the final repayment
+  createdByUserId   String?
+  approvedAt        DateTime?
+  disbursedAt       DateTime?
+  repaidAt          DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@index([tenantId])
+  @@index([employeeId, status])
 }
