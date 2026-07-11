@@ -5,6 +5,41 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Convert non-monetary package items into withdrawable money — #135
+
+Liquidates the convertible portion of a compensation package item (from #133)
+into a cash payout via the existing pool payout rail. Closes the loop:
+onboarding *defines* package items; this *cashes out* the convertible ones.
+
+- **Models** (`prisma/schema.prisma`, migration `add_package_conversion`,
+  additive): `ConversionPolicy` (per-tenant `ratePercent` haircut, `feePercent`,
+  `perConversionCap`), `PackageConversion` (notional/cash/fee, status, linked
+  payout `paymentId`), and `PackageItem.convertedValue` tracking the cumulative
+  converted notional (remaining = `notionalValue − convertedValue`). Enum
+  `ConversionStatus`. Tenant-scoped via `DIRECT_TENANT_MODELS`.
+- **Library** — `lib/hr/conversions.ts`: deterministic `valuation` (notional ×
+  rate − fee, rounded down to 7 dp), policy get/set, `listConvertibleItems`
+  (remaining balance + estimated cash), and a lifecycle that **reserves the
+  balance at request** (increments `convertedValue` in a transaction so
+  concurrent requests can't over-convert) — `requestConversion` →
+  `approveConversion` → `markConversionDisbursed`, with `rejectConversion`
+  releasing the reservation. All `forTenant()`-scoped.
+- **API** (ADMIN mutations, CSRF; session reads): `GET/POST /api/hr/conversions`,
+  `POST /api/hr/conversions/[id]/approve` (approves **and** pays out the net cash
+  via `createPoolBatch`, then marks disbursed), `POST /api/hr/conversions/[id]/reject`,
+  `GET /api/hr/employees/[id]/convertible`, `GET/POST /api/hr/conversion-policy`.
+- **UI** — a conversions panel on the employee detail page: convertible items
+  with remaining balance + estimated cash and a convert-&-withdraw action, plus
+  a conversions table with approve-&-pay / reject.
+
+**Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm build` clean; `pnpm test`
+495 pass / 1 skip. New tests cover valuation math, policy upsert, balance
+reservation + over-convert refusal, non-convertible refusal, reject-releases-
+balance, approve→disburse lifecycle, tenant isolation, and route ADMIN-gating.
+
+_Note:_ the payout reuses the pool rail (`createPoolBatch`), so net cash is paid
+in XLM; large notionals are subject to the rail's per-payout testnet cap.
+
 ## Employee onboarding: roles, salary, compensation packages — #133
 
 The durable HR data foundation that payroll, salary advance (#134), and

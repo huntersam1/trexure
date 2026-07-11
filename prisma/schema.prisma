@@ -62,6 +62,14 @@ enum PayCadence {
   ONE_OFF
 }
 
+// Non-monetary → cash conversion (#135).
+enum ConversionStatus {
+  REQUESTED
+  APPROVED
+  DISBURSED
+  REJECTED
+}
+
 model Tenant {
   id             String         @id @default(cuid())
   name           String
@@ -424,8 +432,52 @@ model PackageItem {
   notionalValue Decimal?            @db.Decimal(38, 8) // non-monetary notional cash value
   cadence       PayCadence          @default(MONTHLY)
   convertible   Boolean             @default(false) // feeds non-monetary → cash conversion (#135)
+  // Cumulative notional value already converted to cash (#135). Remaining
+  // convertible balance = notionalValue - convertedValue.
+  convertedValue Decimal            @default(0) @db.Decimal(38, 8)
+  conversions   PackageConversion[]
   createdAt     DateTime            @default(now())
 
   @@index([tenantId])
   @@index([packageId])
+}
+
+// --- Non-monetary → cash conversion (#135) --------------------------------
+// Liquidates the convertible portion of a compensation package item into a
+// cash payout via the existing pool payout rail. Tenant-scoped (direct
+// `tenantId`, registered in DIRECT_TENANT_MODELS).
+
+// Employer conversion policy (one per tenant). `ratePercent` is the fraction of
+// notional paid out (a haircut < 100 keeps some value back); `feePercent` is
+// deducted from the gross cash value.
+model ConversionPolicy {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  ratePercent    Decimal  @default(100) @db.Decimal(5, 2)
+  feePercent     Decimal  @default(0) @db.Decimal(5, 2)
+  perConversionCap Decimal? @db.Decimal(38, 8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PackageConversion {
+  id              String           @id @default(cuid())
+  tenantId        String
+  employeeId      String
+  packageItemId   String
+  packageItem     PackageItem      @relation(fields: [packageItemId], references: [id], onDelete: Cascade)
+  notionalAmount  Decimal          @db.Decimal(38, 8) // notional value converted
+  cashValue       Decimal          @db.Decimal(38, 8) // computed gross cash (notional × rate)
+  fee             Decimal          @db.Decimal(38, 8) // deducted from cashValue
+  currency        String           @default("XLM")
+  status          ConversionStatus @default(REQUESTED)
+  paymentId       String? // linked disbursement Payment once paid out
+  createdByUserId String?
+  approvedAt      DateTime?
+  disbursedAt     DateTime?
+  createdAt       DateTime         @default(now())
+
+  @@index([tenantId])
+  @@index([employeeId, status])
+  @@index([packageItemId])
 }
