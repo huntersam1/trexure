@@ -110,6 +110,26 @@ describe("setPackage — effective-dated versioning", () => {
     const prior = updated.packages.find((p) => p.id === firstPackageId)!;
     expect(prior.supersededAt).toBe(T2.toISOString());
     expect(prior.items.find((i) => i.type === "BASE_SALARY")!.amount).toBe("50000");
+    // Invariant: exactly one active (non-superseded) package (transaction).
+    expect(updated.packages.filter((p) => p.supersededAt === null)).toHaveLength(1);
+  });
+});
+
+describe("receiverId guard", () => {
+  it("rejects onboarding with a non-existent receiver", async () => {
+    await expect(
+      onboardEmployee(TENANT, USER, onboardPayload({ email: "norcv@acme.test", receiverId: "rcv_does_not_exist" }), T1),
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it("accepts a real (global) receiver", async () => {
+    const rcv = await prisma.receiver.create({
+      data: { email: `rcv.${Date.now()}@freelance.test`, passwordHash: "x" },
+    });
+    const emp = await onboardEmployee(TENANT, USER, onboardPayload({ email: "withrcv@acme.test", receiverId: rcv.id }), T1);
+    expect(emp.receiverId).toBe(rcv.id);
+    await prisma.employee.deleteMany({ where: { id: emp.id } });
+    await prisma.receiver.deleteMany({ where: { id: rcv.id } });
   });
 });
 

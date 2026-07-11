@@ -173,6 +173,13 @@ export async function onboardEmployee(
     const role = await db.employeeRole.findFirst({ where: { id: input.roleId } });
     if (!role) throw new AppError(400, "Unknown role", "The selected role does not exist for this tenant.");
   }
+  // Receiver is a GLOBAL persona (a receiver can be paid by any tenant), so this
+  // is an existence guard for a clean 400 rather than an FK crash — not a
+  // tenant-ownership check (there is no tenant ownership on Receiver to enforce).
+  if (input.receiverId) {
+    const receiver = await db.receiver.findFirst({ where: { id: input.receiverId } });
+    if (!receiver) throw new AppError(400, "Unknown receiver", "The selected receiver does not exist.");
+  }
 
   try {
     const employee = await db.employee.create({
@@ -262,18 +269,24 @@ export async function setPackage(
   if (!employee) throw new AppError(404, "Employee not found", "No such employee for this tenant.");
 
   const effectiveFrom = input.effectiveFrom ?? now;
-  await db.compensationPackage.updateMany({
-    where: { employeeId, supersededAt: null },
-    data: { supersededAt: now },
-  });
-  await db.compensationPackage.create({
-    data: {
-      tenantId,
-      employeeId,
-      effectiveFrom,
-      createdByUserId: userId,
-      items: { create: itemCreateData(tenantId, input.items) },
-    },
-  });
+  // Atomic supersede-then-create: without a transaction a failed create would
+  // leave the employee with no active package, and concurrent calls could leave
+  // two active packages (both supersededAt = null). Run both in one transaction
+  // so the "exactly one active package" invariant holds.
+  await db.$transaction([
+    db.compensationPackage.updateMany({
+      where: { employeeId, supersededAt: null },
+      data: { supersededAt: now },
+    }),
+    db.compensationPackage.create({
+      data: {
+        tenantId,
+        employeeId,
+        effectiveFrom,
+        createdByUserId: userId,
+        items: { create: itemCreateData(tenantId, input.items) },
+      },
+    }),
+  ]);
   return (await getEmployee(tenantId, employeeId))!;
 }
