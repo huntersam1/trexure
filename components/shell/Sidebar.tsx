@@ -130,6 +130,21 @@ export function Sidebar({
         )}
         {role === "ADMIN" && (
           <Link
+            href={"/employees" as Route}
+            onClick={onNavigate}
+            aria-current={isActive("/employees") ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
+              isActive("/employees")
+                ? "bg-primary-container text-primary font-bold"
+                : "text-on-surface-variant hover:bg-surface-container-low"
+            }`}
+          >
+            <Icon name="badge" className="text-[20px]" />
+            Employees
+          </Link>
+        )}
+        {role === "ADMIN" && (
+          <Link
             href={"/admin" as Route}
             onClick={onNavigate}
             aria-current={isActive("/admin") ? "page" : undefined}
