@@ -1,4 +1,4 @@
-import { requireAdmin } from "../../../../lib/auth/session";
+import { requirePlatformAdmin } from "../../../../lib/auth/session";
 import { listWebhookEvents } from "../../../../lib/admin/queries";
 import { recordAudit } from "../../../../lib/audit/log";
 import { AppError, problem } from "../../../../lib/http/problem";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request): Promise<Response> {
   try {
-    const admin = await requireAdmin();
+    const admin = await requirePlatformAdmin();
     const url = new URL(req.url);
     const rawLimit = Number(url.searchParams.get("limit"));
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 100;

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { requireAdmin } = vi.hoisted(() => ({ requireAdmin: vi.fn() }));
-vi.mock("../../lib/auth/session", () => ({ requireAdmin }));
+const { requireSession } = vi.hoisted(() => ({ requireSession: vi.fn() }));
+vi.mock("../../lib/auth/session", () => ({ requireSession }));
+// notFound() throws a sentinel we can assert on (mirrors Next's control-flow throw).
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NEXT_NOT_FOUND"); } }));
 vi.mock("../../lib/admin/queries", () => ({
   listTenantsWithCounts: vi.fn().mockResolvedValue([]),
   listWebhookEvents: vi.fn().mockResolvedValue([]),
@@ -13,15 +15,17 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "c
 
 import AdminPage from "../../app/admin/page";
 
-describe("/admin page guard", () => {
-  beforeEach(() => requireAdmin.mockReset());
+describe("/admin page guard (#143 C1: platform-operator only)", () => {
+  beforeEach(() => requireSession.mockReset());
 
-  it("is role-gated by requireAdmin (its 403 path is covered by the admin route tests)", async () => {
-    requireAdmin.mockResolvedValue({ id: "u_admin", role: "ADMIN", tenantId: "t_hq", username: "admin" });
+  it("renders for a platform admin", async () => {
+    requireSession.mockResolvedValue({ id: "u_admin", role: "ADMIN", tenantId: "t_hq", username: "admin", isPlatformAdmin: true });
     const el = await AdminPage();
-    // requireAdmin runs first and throws AppError(403) for non-admins; here it
-    // resolves, the page renders, and we assert the gate was invoked.
-    expect(requireAdmin).toHaveBeenCalledTimes(1);
     expect(el).toBeTruthy();
+  });
+
+  it("404s a tenant ADMIN who is not a platform admin (no cross-tenant leak)", async () => {
+    requireSession.mockResolvedValue({ id: "u_tenant", role: "ADMIN", tenantId: "t_other", username: "villain", isPlatformAdmin: false });
+    await expect(AdminPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

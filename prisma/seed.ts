@@ -103,12 +103,15 @@ async function main() {
     create: { id: SEED_TENANT_ID, name: tenantName },
   });
 
-  // 2) Admin user (argon2id hash; upsert by unique username).
+  // 2) Admin user (argon2id hash; upsert by unique username). The seeded HQ
+  //    admin is the platform operator (#143 C1) — the ONLY isPlatformAdmin, so
+  //    the /admin console keeps working in demos while self-signup admins stay
+  //    confined to their own tenant.
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
   const admin = await prisma.user.upsert({
     where: { username },
-    update: { role: "ADMIN", tenantId: tenant.id, passwordHash },
-    create: { username, role: "ADMIN", tenantId: tenant.id, passwordHash },
+    update: { role: "ADMIN", tenantId: tenant.id, passwordHash, isPlatformAdmin: true },
+    create: { username, role: "ADMIN", tenantId: tenant.id, passwordHash, isPlatformAdmin: true },
   });
 
   // 3) Tenant ViewKey (encrypted at rest). The "view key" material is a random
