@@ -5,6 +5,18 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Security: harden the demo-gated mock-anchor routes — #143
+
+A Medium finding. Both `mock-anchor` routes are behind `ENABLE_MOCK_ANCHOR`, but
+tightened before that flag is ever on outside dev:
+
+- **`POST /api/mock-anchor/payout`** now calls `assertCsrf(req)` — it's a
+  state-changing POST that was authenticated but had no CSRF check.
+- **`GET /api/mock-anchor/payouts`** is tenant-scoped: `WebhookEvent` is a global
+  model, so it returned every tenant's payout payloads to any signed-in member.
+  It now filters events to those whose `payload.intentId` maps to a payment the
+  caller's tenant owns (via `forTenant`).
+
 ## Correctness: guard salary-advance settlement against concurrent double-settle — #143
 
 Third slice of the #143 audit (a Medium). `settleAdvancesForPayout`

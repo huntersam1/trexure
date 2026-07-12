@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
-import { prisma } from "@/lib/db";
+import { prisma, forTenant } from "@/lib/db";
 import { requireSession } from "@/lib/auth/session";
 import { problem, AppError } from "@/lib/http/problem";
 
@@ -12,19 +12,39 @@ export async function GET(): Promise<Response> {
     return problem(404, "Not Found", "Mock anchor is disabled");
   }
   try {
-    await requireSession();
+    const session = await requireSession();
     const events = await prisma.webhookEvent.findMany({
       where: { provider: env.ANCHOR_PROVIDER },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
-    const payouts = events.map((e) => ({
-      externalId: e.externalId,
-      verified: e.verified,
-      processedAt: e.processedAt,
-      createdAt: e.createdAt,
-      payload: e.payload,
-    }));
+    // WebhookEvent is a global model (no tenantId), so scope by the payout's
+    // intentId to the caller's tenant — otherwise this leaks every tenant's
+    // payout payloads to any signed-in member (#143).
+    const intentIds = [
+      ...new Set(
+        events.map((e) => (e.payload as { intentId?: string } | null)?.intentId).filter((x): x is string => Boolean(x)),
+      ),
+    ];
+    const owned = new Set(
+      intentIds.length === 0
+        ? []
+        : (
+            await forTenant(session.tenantId).payment.findMany({
+              where: { intentId: { in: intentIds } },
+              select: { intentId: true },
+            })
+          ).map((p) => p.intentId),
+    );
+    const payouts = events
+      .filter((e) => owned.has((e.payload as { intentId?: string } | null)?.intentId ?? ""))
+      .map((e) => ({
+        externalId: e.externalId,
+        verified: e.verified,
+        processedAt: e.processedAt,
+        createdAt: e.createdAt,
+        payload: e.payload,
+      }));
     return NextResponse.json({ payouts });
   } catch (e) {
     if (e instanceof AppError) return problem(e.status, e.title, e.detail);
