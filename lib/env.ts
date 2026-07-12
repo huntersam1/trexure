@@ -54,7 +54,12 @@ const EnvSchema = z.object({
   SEED_ONCHAIN: boolFromString.default(false),
 
   ANCHOR_PROVIDER: z.enum(["mock-anchor", "xendit"]),
-  ANCHOR_CALLBACK_TOKEN: z.string().min(1),
+  // Webhook HMAC keys (#143 H1). ANCHOR_CALLBACK_TOKEN is the fallback/global
+  // key; the dedicated per-provider secrets are optional. All require >= 32
+  // chars so a 1-char HMAC key can't slip through.
+  ANCHOR_CALLBACK_TOKEN: z.string().min(32),
+  XENDIT_CALLBACK_TOKEN: z.string().min(32).optional(),
+  CHAIN_WEBHOOK_SECRET: z.string().min(32).optional(),
   ENABLE_MOCK_ANCHOR: boolFromString,
   // Email delivery for batch claim links (#81). Mirrors the anchor mock|real
   // toggle: "mock" logs + records the message (CI stays offline); "resend" is a

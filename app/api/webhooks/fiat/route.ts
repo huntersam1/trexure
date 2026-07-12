@@ -5,6 +5,7 @@ import { logger } from "@/lib/log";
 import { problem } from "@/lib/http/problem";
 import { rateLimit } from "@/lib/auth/rate-limit";
 import { verifyHmac } from "@/lib/webhooks/verify";
+import { loadAnchorWebhookSecret } from "@/lib/anchor/secret";
 import { fiatWebhookSchema } from "@/lib/validation/webhooks";
 import { QUEUE, reconcileQueue } from "@/lib/queue";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -38,8 +39,6 @@ export async function POST(req: Request): Promise<Response> {
   // 1) RAW body BEFORE parse — exact bytes for HMAC.
   const rawBody = await req.text();
   const signature = req.headers.get("x-callback-token") ?? "";
-  const secret = process.env.XENDIT_CALLBACK_TOKEN ?? env.ANCHOR_CALLBACK_TOKEN;
-  const verified = verifyHmac(rawBody, signature, secret);
 
   // 2) Parse + validate (best-effort, even when unverified, for the admin log).
   let json: unknown = null;
@@ -50,6 +49,18 @@ export async function POST(req: Request): Promise<Response> {
   }
   const parsed = fiatWebhookSchema.safeParse(json);
   const provider = env.ANCHOR_PROVIDER;
+
+  // 2a) Resolve the verification key from the REFERENCED payment's tenant (#143
+  // H1). The per-tenant AnchorConfig.webhookSecret is authoritative — a global
+  // token can no longer forge events for a tenant that set its own secret. Fall
+  // back to the global env token for unconfigured tenants / unmatched events so
+  // the demo + first-boot keep working. (A read on untrusted input, no mutation.)
+  const payment = parsed.success
+    ? await prisma.payment.findUnique({ where: { intentId: parsed.data.intentId } })
+    : null;
+  const tenantSecret = payment ? await loadAnchorWebhookSecret(payment.tenantId, provider) : null;
+  const secret = tenantSecret ?? env.XENDIT_CALLBACK_TOKEN ?? env.ANCHOR_CALLBACK_TOKEN;
+  const verified = verifyHmac(rawBody, signature, secret);
 
   // 3) Unverified → log for admin review, NEVER create a leg, reject 401.
   if (!verified) {
@@ -82,8 +93,7 @@ export async function POST(req: Request): Promise<Response> {
     throw e;
   }
 
-  // 5) Locate the payment by the reconciliation join key.
-  const payment = await prisma.payment.findUnique({ where: { intentId: evt.intentId } });
+  // 5) The payment was located up front (step 2a) to resolve the tenant secret.
   if (!payment) {
     logger.warn({ provider, intentId: evt.intentId }, "fiat webhook: no matching payment");
     await prisma.webhookEvent.update({

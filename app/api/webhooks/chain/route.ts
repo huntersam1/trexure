@@ -38,7 +38,9 @@ export async function POST(req: Request): Promise<Response> {
 
   const rawBody = await req.text();
   const signature = req.headers.get("x-callback-token") ?? "";
-  const secret = process.env.CHAIN_WEBHOOK_SECRET ?? env.ANCHOR_CALLBACK_TOKEN;
+  // The chain indexer is a single global service (not per-tenant), so it keeps a
+  // global secret — now formalized in the env schema with a min length (#143 H1).
+  const secret = env.CHAIN_WEBHOOK_SECRET ?? env.ANCHOR_CALLBACK_TOKEN;
   const verified = verifyHmac(rawBody, signature, secret);
 
   let json: unknown = null;

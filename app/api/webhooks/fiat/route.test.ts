@@ -23,6 +23,9 @@ vi.mock("@/lib/queue", () => ({
   reconcileQueue: queue,
 }));
 
+const { loadAnchorWebhookSecret } = vi.hoisted(() => ({ loadAnchorWebhookSecret: vi.fn() }));
+vi.mock("@/lib/anchor/secret", () => ({ loadAnchorWebhookSecret }));
+
 vi.mock("@/lib/auth/rate-limit", () => ({
   rateLimit: vi.fn().mockResolvedValue({ allowed: true, retryAfterSec: 0 }),
 }));
@@ -62,6 +65,8 @@ function reqFor(body: object, token?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default: no per-tenant secret configured → falls back to the global token.
+  loadAnchorWebhookSecret.mockResolvedValue(null);
   db.payment.findUnique.mockResolvedValue({ id: "pay_1", tenantId: "t1", intentId: "intent_123" });
   db.webhookEvent.create.mockResolvedValue({});
   db.webhookEvent.upsert.mockResolvedValue({});
@@ -102,6 +107,27 @@ describe("POST /api/webhooks/fiat", () => {
     expect(res.status).toBe(200);
     expect(db.paymentLeg.upsert).not.toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it("verifies against the tenant's per-tenant secret when configured (#143 H1)", async () => {
+    loadAnchorWebhookSecret.mockResolvedValue("tenant-specific-secret");
+    const evt = buildEvent();
+    const raw = JSON.stringify(evt);
+    // Signed with the tenant's own secret → accepted.
+    const res = await POST(reqFor(evt, signHmac(raw, "tenant-specific-secret")));
+    expect(res.status).toBe(200);
+    expect(loadAnchorWebhookSecret).toHaveBeenCalledWith("t1", mockEnv.ANCHOR_PROVIDER);
+    expect(db.paymentLeg.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects the global token once the tenant has set its own secret (#143 H1)", async () => {
+    loadAnchorWebhookSecret.mockResolvedValue("tenant-specific-secret");
+    const evt = buildEvent();
+    const raw = JSON.stringify(evt);
+    // The old global token no longer authenticates this tenant's events.
+    const res = await POST(reqFor(evt, signHmac(raw, mockEnv.ANCHOR_CALLBACK_TOKEN)));
+    expect(res.status).toBe(401);
+    expect(db.paymentLeg.upsert).not.toHaveBeenCalled();
   });
 
   it("drives the payment to FAILED on payment.failed", async () => {

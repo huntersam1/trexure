@@ -5,6 +5,26 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Security: per-tenant webhook secret (H1) — #143
+
+A High finding. Both webhook handlers verified with one process-wide token, and
+the per-tenant `AnchorConfig.webhookSecret` the settings UI stores was never read
+— so anyone holding the single shared token could forge settlement events for
+**any** tenant, and rotating a tenant's secret had zero effect.
+
+- **Fiat webhook** (`/api/webhooks/fiat`) now resolves the referenced payment's
+  tenant and verifies the HMAC against **that tenant's** stored
+  `AnchorConfig.webhookSecret` (new `lib/anchor/secret.ts` — handles both stored
+  layouts: settings `nonce||ciphertext` and seed/signup `ciphertext` + `config.nonce`).
+  Falls back to the global env token for unconfigured tenants / unmatched events,
+  so the demo and first boot keep working. Live-verified: the seed-stored secret
+  decrypts back to the global token, so the mock anchor still verifies.
+- **Chain webhook** stays a single global service, but its secret is formalized
+  in the env schema.
+- **`lib/env.ts`:** `ANCHOR_CALLBACK_TOKEN` raised to `min(32)`; added optional
+  `XENDIT_CALLBACK_TOKEN` / `CHAIN_WEBHOOK_SECRET` (both `min(32)`), replacing the
+  bare `process.env` reads.
+
 ## Security: rate-limit expensive authenticated endpoints — #143
 
 A Medium finding. Only login / signup / webhooks / verify-token were throttled, so
