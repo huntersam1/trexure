@@ -7,12 +7,15 @@ import { assertCsrf } from "@/lib/auth/csrf";
 import { approveConversion, markConversionDisbursed } from "@/lib/hr/conversions";
 import { getEmployee } from "@/lib/hr/employees";
 import { createPoolBatch } from "@/lib/pool/batch";
+import { recordAudit } from "@/lib/audit/log";
 import { env } from "@/lib/env";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
 
 export const runtime = "nodejs"; // pool payout (Stellar/ZK)
 export const dynamic = "force-dynamic";
+
+const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 
 /**
  * Approve a conversion and pay out the net cash via the existing pool rail
@@ -47,6 +50,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     const disbursed = await markConversionDisbursed(session.tenantId, id, row.paymentId);
+    await recordAudit({
+      action: "hr.conversion.disburse",
+      userId: session.id,
+      tenantId: session.tenantId,
+      target: disbursed.id,
+      metadata: { employeeId: approved.employeeId, net: approved.net, paymentId: row.paymentId, batchId: batch.batchId },
+      ip: clientIp(req),
+    });
     return NextResponse.json(
       { conversion: disbursed, payout: { paymentId: row.paymentId, batchId: batch.batchId } },
       { headers: { "Cache-Control": "no-store" } },

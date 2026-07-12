@@ -7,9 +7,12 @@ import { assertCsrf } from "@/lib/auth/csrf";
 import { approveAdvance, markAdvanceDisbursed } from "@/lib/hr/advances";
 import { getEmployee } from "@/lib/hr/employees";
 import { createPoolBatch } from "@/lib/pool/batch";
+import { recordAudit } from "@/lib/audit/log";
 import { env } from "@/lib/env";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
+
+const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 
 export const runtime = "nodejs"; // pool payout (Stellar/ZK)
 export const dynamic = "force-dynamic";
@@ -41,6 +44,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     const disbursed = await markAdvanceDisbursed(session.tenantId, id, row.paymentId);
+    await recordAudit({
+      action: "hr.advance.disburse",
+      userId: session.id,
+      tenantId: session.tenantId,
+      target: disbursed.id,
+      metadata: { employeeId: approved.employeeId, amount: approved.amount, paymentId: row.paymentId, batchId: batch.batchId },
+      ip: clientIp(req),
+    });
     return NextResponse.json(
       { advance: disbursed, payout: { paymentId: row.paymentId, batchId: batch.batchId } },
       { headers: { "Cache-Control": "no-store" } },

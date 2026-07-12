@@ -7,10 +7,13 @@ import { assertCsrf } from "@/lib/auth/csrf";
 import { computeSalaryPayout, settleAdvancesForPayout } from "@/lib/hr/advances";
 import { getEmployee } from "@/lib/hr/employees";
 import { createPoolBatch } from "@/lib/pool/batch";
+import { recordAudit } from "@/lib/audit/log";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { env } from "@/lib/env";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
+
+const clientIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
 
 export const runtime = "nodejs"; // pool payout (Stellar/ZK)
 export const dynamic = "force-dynamic";
@@ -74,6 +77,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
+    await recordAudit({
+      action: "hr.salary.payout",
+      userId: session.id,
+      tenantId: session.tenantId,
+      target: id,
+      metadata: {
+        gross: payout.gross,
+        deduction: payout.deduction,
+        net: payout.net,
+        repaid: repaid.toString(),
+        salaryPaymentId: net.gt(0) ? salaryPaymentId : null,
+      },
+      ip: clientIp(req),
+    });
     return NextResponse.json(
       {
         payout: { gross: payout.gross, deduction: payout.deduction, net: payout.net, currency: payout.currency },
