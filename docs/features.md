@@ -5,6 +5,20 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Security: audit trail on money-moving HR routes — #143
+
+A Medium finding. `recordAudit` covered admin/report/settings actions but not the
+HR payout paths, so a successful disbursement left no queryable actor+amount
+record. Added a structured audit row (with caller IP) on the success path of:
+
+- `POST /api/hr/advances/[id]/approve` → `hr.advance.disburse`
+- `POST /api/hr/conversions/[id]/approve` → `hr.conversion.disburse`
+- `POST /api/hr/employees/[id]/pay-salary` → `hr.salary.payout`
+
+Each records the actor, tenant, target, and money metadata (amount / net /
+gross-deduction-repaid) only **after** the payout succeeds — a failed payout
+(502) or CSRF/flag rejection writes nothing.
+
 ## Demo: HR-payroll video walkthrough — #144
 
 Recorded walkthrough of the employee / HR-payroll suite (#133/#134/#135) so it
