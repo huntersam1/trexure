@@ -2,6 +2,7 @@ import "server-only";
 
 import { Keypair } from "@stellar/stellar-sdk";
 
+import { Prisma } from "@/lib/generated/prisma/client";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/http/problem";
 import type { PoolDepositInput, PoolWithdrawInput } from "@/lib/validation/pool";
@@ -28,10 +29,25 @@ export function custodyAddress(): string {
 const STROOP = 10_000_000n;
 const explorerUrl = (txHash: string) => `https://stellar.expert/explorer/testnet/tx/${txHash}`;
 
+/**
+ * Convert a decimal-string XLM amount to whole stroops WITHOUT touching a JS
+ * float (#143 H2). `amount * 1e7` in `number` silently loses precision above
+ * ~9e8 XLM (2^53 stroops); Prisma.Decimal is exact. Throws on a non-finite,
+ * non-positive, or sub-stroop-precision (> 7 dp) amount rather than rounding
+ * money away.
+ */
+export function xlmToStroops(amount: string): bigint {
+  const d = new Prisma.Decimal(amount);
+  if (!d.isFinite() || d.lte(0)) throw new Error(`invalid XLM amount: ${amount}`);
+  const stroops = d.mul(STROOP.toString());
+  if (!stroops.isInteger()) throw new Error(`XLM amount exceeds stroop precision (7 dp): ${amount}`);
+  return BigInt(stroops.toFixed(0));
+}
+
 export type PoolDepositResult = {
   note: string;
   commitment: string;
-  amount: number;
+  amount: string;
   txHash: string;
   ledger: number;
   explorerUrl: string;
@@ -39,7 +55,7 @@ export type PoolDepositResult = {
 
 /** Shield `amount` XLM into the pool; returns the one-time claim note + tx. */
 export async function createPoolDeposit(input: PoolDepositInput): Promise<PoolDepositResult> {
-  const amountStroops = BigInt(Math.round(input.amount * Number(STROOP)));
+  const amountStroops = xlmToStroops(input.amount);
   const res = await submitDeposit({ amount: amountStroops, poolContractId: poolContractId() });
   return {
     note: res.noteString,

@@ -16,8 +16,8 @@ const RECEIVER_EMAIL = "batch-onplatform@example.com";
 
 // A deposit that mints a deterministic note per amount; amount 999 blows up to
 // exercise partial-failure.
-function depositFor(amount: number) {
-  if (amount === 999) throw new Error("simulated deposit failure");
+function depositFor(amount: string) {
+  if (amount === "999") throw new Error("simulated deposit failure");
   return {
     note: `trexure-note-v1-${amount}`,
     commitment: `0xcommit${amount}`,
@@ -40,7 +40,7 @@ beforeAll(async () => {
     update: {},
     create: { id: RECEIVER, email: RECEIVER_EMAIL, passwordHash: "x" },
   });
-  createPoolDeposit.mockImplementation(async ({ amount }: { amount: number }) => depositFor(amount));
+  createPoolDeposit.mockImplementation(async ({ amount }: { amount: string }) => depositFor(amount));
 });
 
 afterAll(async () => {
@@ -57,14 +57,14 @@ describe("createPoolBatch", () => {
   it("creates a PaymentBatch + N child Payments and returns N notes", async () => {
     const res = await createPoolBatch(TENANT, USER, {
       receivers: [
-        { amount: 10, ref: "Alice", email: "alice@example.com" },
-        { amount: 5, ref: "Bob" },
+        { amount: "10", ref: "Alice", email: "alice@example.com" },
+        { amount: "5", ref: "Bob" },
       ],
     });
 
     expect(res.count).toBe(2);
     expect(res.requested).toBe(2);
-    expect(res.totalSourceAmount).toBe(15);
+    expect(res.totalSourceAmount).toBe("15");
     expect(res.results.filter((r) => r.ok)).toHaveLength(2);
     expect(res.results.map((r) => (r.ok ? r.note : null))).toEqual([
       "trexure-note-v1-10",
@@ -93,15 +93,15 @@ describe("createPoolBatch", () => {
   it("reports partial failures per-row without discarding successful notes", async () => {
     const res = await createPoolBatch(TENANT, USER, {
       receivers: [
-        { amount: 7, ref: "Carol" },
-        { amount: 999, ref: "Dave" }, // this deposit throws
-        { amount: 3, ref: "Erin" },
+        { amount: "7", ref: "Carol" },
+        { amount: "999", ref: "Dave" }, // this deposit throws
+        { amount: "3", ref: "Erin" },
       ],
     });
 
     expect(res.requested).toBe(3);
     expect(res.count).toBe(2); // only the two that succeeded
-    expect(res.totalSourceAmount).toBe(10);
+    expect(res.totalSourceAmount).toBe("10");
 
     const dave = res.results.find((r) => r.ref === "Dave")!;
     expect(dave.ok).toBe(false);
@@ -117,9 +117,9 @@ describe("createPoolBatch", () => {
   it("notifies an on-platform receiver in-app and skips an off-platform one (#82)", async () => {
     const res = await createPoolBatch(TENANT, USER, {
       receivers: [
-        { amount: 4, ref: "OnPlatform", email: RECEIVER_EMAIL.toUpperCase() }, // case-insensitive match
-        { amount: 6, ref: "OffPlatform", email: "stranger@example.com" },
-        { amount: 8, ref: "NoEmail" },
+        { amount: "4", ref: "OnPlatform", email: RECEIVER_EMAIL.toUpperCase() }, // case-insensitive match
+        { amount: "6", ref: "OffPlatform", email: "stranger@example.com" },
+        { amount: "8", ref: "NoEmail" },
       ],
     });
 
@@ -139,9 +139,9 @@ describe("createPoolBatch", () => {
   it("emails a claim link to an off-platform receiver only, storing ciphertext (#81)", async () => {
     const res = await createPoolBatch(TENANT, USER, {
       receivers: [
-        { amount: 4, ref: "OnPlatform", email: RECEIVER_EMAIL }, // has an account → in-app, no email
-        { amount: 6, ref: "OffPlatform", email: "nobody@example.com" }, // no account → emailed
-        { amount: 8, ref: "NoEmail" }, // no email → neither
+        { amount: "4", ref: "OnPlatform", email: RECEIVER_EMAIL }, // has an account → in-app, no email
+        { amount: "6", ref: "OffPlatform", email: "nobody@example.com" }, // no account → emailed
+        { amount: "8", ref: "NoEmail" }, // no email → neither
       ],
     });
 

@@ -36,7 +36,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!employee) return problem(404, "Not found", "Employee not found");
 
     const batch = await createPoolBatch(session.tenantId, session.id, {
-      receivers: [{ amount: Number(approved.amount), ref: `Advance — ${employee.name}`, email: employee.email }],
+      receivers: [{ amount: approved.amount, ref: `Advance — ${employee.name}`, email: employee.email }],
     });
     const row = batch.results[0];
     if (!row || !row.ok) {

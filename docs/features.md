@@ -24,6 +24,33 @@ Still open in H4: cursor-batching the report builders (`reconciliation` / `fx` /
 `disclosure`) so a wide date range doesn't load every row + leg + receipt into
 memory at once.
 
+## Correctness: money as Decimal string, not float (H2) — #143
+
+A High finding. The pool + HR payout path ran money through JS `number`:
+`BigInt(Math.round(amount * 1e7))` (float × 1e7), `z.coerce.number()` amount
+schemas, and `successTotal += receiver.amount` (float accumulation). Safe only
+because `/pool` caps at 10 000 XLM — but the **HR salary/advance/conversion
+payouts bypass that cap** and cast `Prisma.Decimal → Number`, so a large salary
+could exceed 2^53 stroops and silently lose precision.
+
+Money now threads a **Decimal string** end-to-end, never a float:
+
+- **`lib/validation/pool.ts`:** a shared `xlmAmount` schema — normalizes a JSON
+  number to its string form, then validates with `Prisma.Decimal` (positive,
+  ≤ 10 000, ≤ 7 dp). Used by the deposit / demo / batch-receiver schemas.
+- **`lib/pool/service.ts`:** new `xlmToStroops(amount: string)` converts via
+  `Prisma.Decimal` (exact above the 2^53 boundary) and **throws** on sub-stroop
+  (> 7 dp) precision rather than rounding money away. `PoolDepositResult.amount`
+  is now a string.
+- **`lib/pool/batch.ts`:** accumulates the batch total as `Prisma.Decimal`;
+  result `amount` / `totalSourceAmount` are strings.
+- **HR routes** pass the Decimal string straight through (dropped `Number(...)`).
+- **Pool client** (`PoolRail` / `BatchRail`) sends the raw string on the wire.
+
+Tests: `xlmToStroops` stays exact at `9007199254740993` stroops where
+`Math.round(amount*1e7)` loses it; schema rejects > 7 dp / over-cap / non-positive;
+batch total accumulates as a string.
+
 ## Correctness: atomic idempotency on payment creation — #143
 
 A Medium finding. `POST /api/payments` did check-then-act (`getCachedIdempotent`
