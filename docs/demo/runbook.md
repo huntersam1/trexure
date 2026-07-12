@@ -49,6 +49,21 @@ The second half of the pitch: **real value moves privately on-chain.** Full scri
 > earlier on-chain leg only **verified** a proof (no tokens moved); this rail
 > **moves real value** privately, on a separate, self-contained pool.
 
+## Act 3 — Employee / HR payroll (#133/#134/#135)
+
+Pre-recorded walkthrough: [`trexure-hr.mp4`](trexure-hr.mp4) — one continuous
+admin flow, ~50s. Re-record with `pnpm demo:record:hr` (needs `pnpm dev` +
+seeded DB + `ENABLE_POOL_RAIL=true` + a funded `STELLAR_SOURCE_SECRET`; the
+payout steps settle on testnet).
+
+- **Onboard** an employee with a base salary **and** a convertible non-monetary
+  benefit (e.g. a "Wellness allowance").
+- **Salary advance:** show the pro-rated *eligible-now* figure, request an
+  advance, **approve & pay** it through the pool rail, then **Run salary payout**
+  — the advance is netted FIFO and marked **repaid**.
+- **Non-monetary → cash:** convert part of the benefit, **approve & pay** — the
+  balance decrements and the conversion shows **disbursed** with a linked payment.
+
 ## Beat → feature map (SPEC §14.6)
 | Beat | Backed by |
 |---|---|
