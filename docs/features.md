@@ -5,6 +5,22 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Demo: HR-payroll video walkthrough — #144
+
+Recorded walkthrough of the employee / HR-payroll suite (#133/#134/#135) so it
+can sit alongside the other demo recordings. New `scripts/record-hr.mjs` +
+`pnpm demo:record:hr` (Playwright → ffmpeg, mirroring `record-audit-link.mjs`)
+drives one continuous ADMIN flow: onboard an employee with a base salary and a
+convertible non-monetary benefit → request a salary advance, **approve & pay** it
+through the pool rail, **Run salary payout** (advance netted FIFO, marked
+repaid) → convert part of the benefit to cash and **approve & pay** it.
+
+The approve-&-pay / salary-run / convert steps settle on the pool rail (real
+testnet), so the recorder needs `ENABLE_POOL_RAIL=true` + a funded
+`STELLAR_SOURCE_SECRET`; it also pre-warms the authed routes (Next dev compiles
+on first hit) so the recorded pass is smooth. Output committed to
+`docs/demo/trexure-hr.mp4` (~50s); linked from the README and the demo runbook.
+
 ## Performance: missing database indexes — #143
 
 Second slice of the #143 audit — the High/Medium **missing-index** findings.

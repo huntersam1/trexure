@@ -52,6 +52,7 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 - Demo Replay / Demo Reset runs Shield → Decrypt → Reconcile → Receipt against the seeded sample payment.
 - `pnpm zk:demo` — generates and verifies a live Groth16 proof on testnet, including a rejected tampered-statement case.
 - `pnpm demo:record` — scripted Playwright recording of the full lifecycle.
+- `pnpm demo:record:hr` — records the HR-payroll walkthrough (onboarding → salary advance → non-monetary conversion) to [`docs/demo/trexure-hr.mp4`](docs/demo/trexure-hr.mp4). The approve-&-pay / salary-run / convert steps settle through the pool rail, so it needs `ENABLE_POOL_RAIL=true` and a funded `STELLAR_SOURCE_SECRET`.
 
 **Multi-tenant SaaS spine**
 - Argon2id password auth with anti-enumeration timing and Redis-backed rate limiting.
