@@ -164,6 +164,32 @@ describe("salary payout netting", () => {
     expect(repaidCount).toBe(1);
     expect(stillOwing?.outstanding).toBe("200"); // 300 − 100 applied
   });
+
+  it("guards against a concurrent double-settle (lost update)", async () => {
+    // Two pay-salary runs racing for the SAME employee both read outstanding=300
+    // before either writes (Promise.all suspends both at their first read). The
+    // compare-and-set must let exactly ONE apply — never decrement the ledger
+    // twice — so the total actually repaid equals the true outstanding, not 2×.
+    const employeeId = await employeeWithSalary(TENANT, "race@acme.test", "1000");
+    await prisma.salaryAdvance.create({
+      data: { tenantId: TENANT, employeeId, amount: "300", fee: "0", outstanding: "300", status: "DISBURSED", paymentId: "d_race" },
+    });
+
+    const results = await Promise.allSettled([
+      settleAdvancesForPayout(TENANT, employeeId, new Prisma.Decimal("300"), "pay_race_1"),
+      settleAdvancesForPayout(TENANT, employeeId, new Prisma.Decimal("300"), "pay_race_2"),
+    ]);
+
+    const totalRepaid = results
+      .filter((r): r is PromiseFulfilledResult<Prisma.Decimal> => r.status === "fulfilled")
+      .reduce((s, r) => s.plus(r.value), new Prisma.Decimal(0));
+    // The bug double-counts → 600; the fix caps at the true outstanding.
+    expect(totalRepaid.toString()).toBe("300");
+
+    const advs = await listAdvances(TENANT, employeeId);
+    expect(advs[0]!.status).toBe("REPAID");
+    expect(advs[0]!.outstanding).toBe("0");
+  });
 });
 
 describe("tenant isolation", () => {

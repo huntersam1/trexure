@@ -19,6 +19,51 @@ winner is still in flight, **409** to retry. The reservation is released on a
 `createPayment` failure so a legitimate retry isn't locked out, and auto-expires
 (5 min) if the request crashes mid-flight.
 
+## Security: audit trail on money-moving HR routes — #143
+
+A Medium finding. `recordAudit` covered admin/report/settings actions but not the
+HR payout paths, so a successful disbursement left no queryable actor+amount
+record. Added a structured audit row (with caller IP) on the success path of:
+
+- `POST /api/hr/advances/[id]/approve` → `hr.advance.disburse`
+- `POST /api/hr/conversions/[id]/approve` → `hr.conversion.disburse`
+- `POST /api/hr/employees/[id]/pay-salary` → `hr.salary.payout`
+
+Each records the actor, tenant, target, and money metadata (amount / net /
+gross-deduction-repaid) only **after** the payout succeeds — a failed payout
+(502) or CSRF/flag rejection writes nothing.
+
+## Security: harden the demo-gated mock-anchor routes — #143
+
+A Medium finding. Both `mock-anchor` routes are behind `ENABLE_MOCK_ANCHOR`, but
+tightened before that flag is ever on outside dev:
+
+- **`POST /api/mock-anchor/payout`** now calls `assertCsrf(req)` — it's a
+  state-changing POST that was authenticated but had no CSRF check.
+- **`GET /api/mock-anchor/payouts`** is tenant-scoped: `WebhookEvent` is a global
+  model, so it returned every tenant's payout payloads to any signed-in member.
+  It now filters events to those whose `payload.intentId` maps to a payment the
+  caller's tenant owns (via `forTenant`).
+
+## Correctness: guard salary-advance settlement against concurrent double-settle — #143
+
+Third slice of the #143 audit (a Medium). `settleAdvancesForPayout`
+(`lib/hr/advances.ts`) read the employee's DISBURSED advances **outside** any
+transaction and then updated each **by `id` alone** — no status/outstanding
+guard. Two concurrent `pay-salary` runs for one employee both read the same
+outstanding and both wrote, silently losing one update (the ledger dropped once
+though the employee was charged twice; a partial deduction could also leave a
+stale outstanding).
+
+Fix: do the read **and** the guarded writes in one interactive `$transaction`,
+each write a **compare-and-set** (`updateMany where { id, status: "DISBURSED",
+outstanding: <as-read> }`). If a concurrent run already moved the advance, the
+stale write matches 0 rows → the whole settlement throws (409) and rolls back
+instead of double-decrementing. Matches the existing approve/disburse/reject
+guard pattern in the same file; the `pay-salary` route already surfaces a
+settle-time throw for reconciliation. Regression test drives two racing
+settlements and asserts the total repaid equals the true outstanding (not 2×).
+
 ## Demo: HR-payroll video walkthrough — #144
 
 Recorded walkthrough of the employee / HR-payroll suite (#133/#134/#135) so it
