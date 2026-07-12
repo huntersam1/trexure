@@ -5,6 +5,20 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Correctness: atomic idempotency on payment creation — #143
+
+A Medium finding. `POST /api/payments` did check-then-act (`getCachedIdempotent`
+→ `createPayment` → `setCachedIdempotent`), so two concurrent requests with the
+same `Idempotency-Key` both missed the cache and both submitted a real Soroban tx
++ created duplicate `Payment`s.
+
+Now `lib/idempotency.ts` exposes `reserveIdempotent` (`SET NX` with a short
+placeholder TTL): exactly one caller wins the reservation and reaches
+`createPayment`; a loser returns the finalized id (200, idempotent) or, if the
+winner is still in flight, **409** to retry. The reservation is released on a
+`createPayment` failure so a legitimate retry isn't locked out, and auto-expires
+(5 min) if the request crashes mid-flight.
+
 ## Security: audit trail on money-moving HR routes — #143
 
 A Medium finding. `recordAudit` covered admin/report/settings actions but not the
