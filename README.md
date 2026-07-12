@@ -295,12 +295,31 @@ build-vs-reuse decision is tracked in [#52](https://github.com/webnxt-2030/trexu
 
 ### Live on Stellar testnet
 
-The verifier / `shielded_transfer` contract is deployed and in active use on Stellar
-testnet — every shielded payment records its commitment on-chain as a contract event.
-Browse it on [stellar.expert](https://stellar.expert):
+Every contract below is **deployed and exercised on Stellar testnet** (network passphrase
+`Test SDF Network ; September 2015`, RPC `https://soroban-testnet.stellar.org`). Click any
+address to browse it on [stellar.expert](https://stellar.expert).
 
-- **Contract:** [`CBCYXVZC…VTSG`](https://stellar.expert/explorer/testnet/contract/CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG)
-- **Deployment tx:** [`2ede3274…eeffd`](https://stellar.expert/explorer/testnet/tx/2ede3274ee67438f37eab547671d9b5e639fc4a0655298cd375e1834cdaaeffd)
+#### Deployed contracts (testnet)
+
+| Contract | Address | Rail / role | Entrypoints | Status |
+|---|---|---|---|---|
+| **Verifier / `shielded_transfer`** (#31) | [`CBCYXVZC…VTSG`](https://stellar.expert/explorer/testnet/contract/CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG) | Reconciliation rail — on-chain Groth16 (BLS12-381) proof verification + commitment recorder | `verify`, `shielded_transfer` | 🟢 Active — every shielded payment records its commitment here |
+| **ShieldedPool** (#64, redeployed #74) | [`CCQRSDCM…JONM`](https://stellar.expert/explorer/testnet/contract/CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM) | Shielded pool rail — Tornado-style depth-4 Merkle tree (16-leaf anonymity set) + nullifier set, in-contract Groth16, custodies native XLM | `initialize`, `deposit`, `withdraw`, `get_root`, `is_spent` | 🟢 Active when `ENABLE_POOL_RAIL=true` (app default `POOL_CONTRACT_ID`) |
+| **Native XLM SAC** | [`CDLZFC3S…CYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) | Stellar Asset Contract for native XLM — the token the ShieldedPool deposits/withdraws | SEP-41 token interface | 🟢 Standard SAC (`tokenSac` in `zk/pool-deploy.json`) |
+| **ShieldedPool (original)** | [`CB5FU3DB…LZT4`](https://stellar.expert/explorer/testnet/contract/CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4) | First depth-4 pool deploy | `initialize`, `deposit`, `withdraw`, `get_root`, `is_spent` | ⚪ Superseded — filled to 16/16 leaves (`TreeFull`, Error #3); replaced by `CCQRSDCM…` on 2026-07-08 |
+
+**Deployment records** (source of truth): the verifier is pinned in [`zk/deploy.json`](zk/deploy.json)
+(wasm `987b8f51…`, deployer `GA6N25U5…`); the pool is pinned in
+[`zk/pool-deploy.json`](zk/pool-deploy.json) (wasm `e60b7cd3…`, deploy ledger `3494736`,
+deploy tx [`cbe1aada…`](https://stellar.expert/explorer/testnet/tx/cbe1aada7c7ee76e3c065bd5e88b60b133a8af0e9744b9df9639018677142850),
+init tx [`94b0aeaa…`](https://stellar.expert/explorer/testnet/tx/94b0aeaa753f164721e91b33911e94d727c438edd53a85e1cab6326166ce301f)).
+
+> **Which pool address is live?** The running app resolves the pool from `env.POOL_CONTRACT_ID`
+> (default `CCQRSDCM…JONM`), matching `zk/pool-deploy.json`. Some demo docs and `.env.example`
+> still reference the superseded `CB5FU3DB…` pool — prefer the deploy-JSON / env value.
+> All contracts are **demo-grade** (trusted setup, testnet only).
+
+- **Verifier deployment tx:** [`2ede3274…eeffd`](https://stellar.expert/explorer/testnet/tx/2ede3274ee67438f37eab547671d9b5e639fc4a0655298cd375e1834cdaaeffd)
 
 Sample `shielded_transfer` transactions we submitted (each is the real on-chain leg of a
 payment that reconciled to a `SETTLED` receipt):
