@@ -1,6 +1,7 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { z } from "zod";
 
+import { Prisma } from "@/lib/generated/prisma/client";
 import { NOTE_PREFIX, parseNote } from "@/lib/pool/note";
 
 /**
@@ -13,10 +14,31 @@ const stellarAddress = z
   .string()
   .refine((s) => StrKey.isValidEd25519PublicKey(s), "recipient must be a Stellar public key (G…)");
 
+/**
+ * A positive XLM amount as a DECIMAL STRING (#143 H2). Money never round-trips
+ * through a JS `number` — a JSON number is normalized to its string form, then
+ * validated with Prisma.Decimal (positive, <= 10000, <= 7 dp = XLM precision).
+ * Callers hand this straight to the stroop conversion, no float in between.
+ */
+export const xlmAmount = z.preprocess(
+  (v) => (typeof v === "number" ? v.toString() : v),
+  z
+    .string()
+    .trim()
+    .refine((v) => {
+      try {
+        const d = new Prisma.Decimal(v);
+        return d.isFinite() && d.gt(0) && d.lte(10_000) && d.decimalPlaces() <= 7;
+      } catch {
+        return false;
+      }
+    }, "amount must be a positive XLM value (<= 10000, <= 7 decimal places)"),
+);
+
 export const poolDepositSchema = z.object({
   // XLM amount to shield into the pool. Bounded so a fat-fingered demo can't
   // drain the funded key; the pool custodies valueless testnet XLM regardless.
-  amount: z.coerce.number().positive().max(10_000),
+  amount: xlmAmount,
 });
 
 export const poolWithdrawSchema = z.object({
@@ -25,7 +47,7 @@ export const poolWithdrawSchema = z.object({
 });
 
 export const poolDemoSchema = z.object({
-  amount: z.coerce.number().positive().max(10_000).default(10),
+  amount: xlmAmount.default("10"),
 });
 
 /**
@@ -35,7 +57,7 @@ export const poolDemoSchema = z.object({
  * unused here.
  */
 export const poolBatchReceiverSchema = z.object({
-  amount: z.coerce.number().positive().max(10_000),
+  amount: xlmAmount,
   ref: z.string().trim().min(1, "receiver label is required").max(200),
   email: z.string().trim().email("invalid email").max(320).optional(),
 });

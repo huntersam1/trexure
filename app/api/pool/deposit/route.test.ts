@@ -44,7 +44,7 @@ describe("POST /api/pool/deposit", () => {
     expect(body.note).toBe("trexure-note-v1-abc");
     expect(body.txHash).toBe("deadbeef");
     expect(assertCsrf).toHaveBeenCalled();
-    expect(createPoolDeposit).toHaveBeenCalledWith({ amount: 10 });
+    expect(createPoolDeposit).toHaveBeenCalledWith({ amount: "10" }); // normalized to a decimal string (#143 H2)
   });
 
   it("404s when the rail is disabled and never touches the pool", async () => {

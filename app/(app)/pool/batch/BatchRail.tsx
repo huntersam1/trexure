@@ -14,7 +14,7 @@ type ReceiverResult =
       ok: true;
       ref: string;
       email: string | null;
-      amount: number;
+      amount: string;
       paymentId: string;
       intentId: string;
       note: string;
@@ -25,13 +25,13 @@ type ReceiverResult =
       notifiedInApp: boolean;
       emailedClaim: boolean;
     }
-  | { ok: false; ref: string; email: string | null; amount: number; error: string };
+  | { ok: false; ref: string; email: string | null; amount: string; error: string };
 
 type BatchResult = {
   batchId: string;
   requested: number;
   count: number;
-  totalSourceAmount: number;
+  totalSourceAmount: string;
   poolContractId: string;
   claimUrl: string;
   results: ReceiverResult[];
@@ -104,7 +104,7 @@ export function BatchRail({ csrfToken }: { csrfToken: string }): JSX.Element {
     setResult(null);
     try {
       const receivers = validRows.map((r) => ({
-        amount: Number(r.amount),
+        amount: r.amount.trim(),
         ref: r.ref.trim(),
         ...(r.email.trim() ? { email: r.email.trim() } : {}),
       }));

@@ -40,12 +40,12 @@ describe("POST /api/pool/batch", () => {
       batchId: "batch_1",
       requested: 2,
       count: 2,
-      totalSourceAmount: 15,
+      totalSourceAmount: "15",
       poolContractId: "CPOOL",
       claimUrl: "http://localhost/claim",
       results: [
-        { ok: true, ref: "Alice", amount: 10, note: "trexure-note-v1-a", paymentId: "p1" },
-        { ok: true, ref: "Bob", amount: 5, note: "trexure-note-v1-b", paymentId: "p2" },
+        { ok: true, ref: "Alice", amount: "10", note: "trexure-note-v1-a", paymentId: "p1" },
+        { ok: true, ref: "Bob", amount: "5", note: "trexure-note-v1-b", paymentId: "p2" },
       ],
     });
   });
@@ -58,11 +58,11 @@ describe("POST /api/pool/batch", () => {
     expect(body.count).toBe(2);
     expect(body.results).toHaveLength(2);
     expect(assertCsrf).toHaveBeenCalled();
-    // tenantId + userId from the session, validated input passed through.
+    // tenantId + userId from the session; amounts normalized to decimal strings (#143 H2).
     expect(createPoolBatch).toHaveBeenCalledWith("t1", "u1", {
       receivers: [
-        { amount: 10, ref: "Alice", email: "alice@example.com" },
-        { amount: 5, ref: "Bob" },
+        { amount: "10", ref: "Alice", email: "alice@example.com" },
+        { amount: "5", ref: "Bob" },
       ],
     });
   });
