@@ -343,29 +343,35 @@ export async function settleAdvancesForPayout(
   now: Date = new Date(),
 ): Promise<Prisma.Decimal> {
   const db = forTenant(tenantId);
-  const advances = await db.salaryAdvance.findMany({
-    where: { employeeId, status: "DISBURSED", outstanding: { gt: 0 } },
-    orderBy: { createdAt: "asc" },
-  });
+  // Read + writes in ONE interactive transaction, each write a compare-and-set
+  // on the advance's (status, outstanding) as read here. A concurrent pay-salary
+  // that already moved an advance makes this run's stale write match 0 rows → we
+  // throw and roll back the whole settlement rather than silently decrement the
+  // ledger twice (lost update). Same guard pattern as approve/disburse/reject.
+  return db.$transaction(async (tx) => {
+    const advances = await tx.salaryAdvance.findMany({
+      where: { employeeId, status: "DISBURSED", outstanding: { gt: 0 } },
+      orderBy: { createdAt: "asc" },
+    });
 
-  let remaining = deduction;
-  const ops: Prisma.PrismaPromise<unknown>[] = [];
-  for (const adv of advances) {
-    if (remaining.lte(0)) break;
-    const applied = D.min(remaining, adv.outstanding);
-    const newOutstanding = adv.outstanding.sub(applied);
-    const cleared = newOutstanding.lte(0);
-    ops.push(
-      db.salaryAdvance.update({
-        where: { id: adv.id },
+    let remaining = deduction;
+    for (const adv of advances) {
+      if (remaining.lte(0)) break;
+      const applied = D.min(remaining, adv.outstanding);
+      const newOutstanding = adv.outstanding.sub(applied);
+      const cleared = newOutstanding.lte(0);
+      const { count } = await tx.salaryAdvance.updateMany({
+        where: { id: adv.id, status: "DISBURSED", outstanding: adv.outstanding },
         data: {
           outstanding: newOutstanding.toString(),
           ...(cleared ? { status: "REPAID", repaidAt: now, repaidByPaymentId: salaryPaymentId } : {}),
         },
-      }),
-    );
-    remaining = remaining.sub(applied);
-  }
-  if (ops.length > 0) await db.$transaction(ops);
-  return deduction.sub(remaining);
+      });
+      if (count !== 1) {
+        throw new AppError(409, "Conflict", "An advance changed during settlement; retry the payout.");
+      }
+      remaining = remaining.sub(applied);
+    }
+    return deduction.sub(remaining);
+  });
 }
