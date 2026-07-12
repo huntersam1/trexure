@@ -109,17 +109,33 @@ export async function getDashboardKpis(): Promise<{
   const user = await requireSession();
   const db = forTenant(user.tenantId);
 
-  const [settled, pendingCount, recent] = await Promise.all([
-    db.payment.findMany({ where: { status: "SETTLED" }, select: { sourceAmount: true, createdAt: true, updatedAt: true } }),
+  // Settlement-time average is sampled over the most-recent window rather than
+  // every settled row ever (#143 H4): a timestamp-difference average has no
+  // Prisma `_avg` (and we don't want raw SQL), so bounding the sample keeps this
+  // — the most-hit page — from scanning linearly-growing history forever.
+  const AVG_WINDOW = 200;
+
+  const [agg, pendingCount, recent, recentSettled] = await Promise.all([
+    // Sum in the DB (exact, bounded) instead of pulling every settled row and
+    // reducing with `Number(...)` in JS — that both scanned unboundedly and
+    // accumulated money as a float.
+    db.payment.aggregate({ where: { status: "SETTLED" }, _sum: { sourceAmount: true } }),
     db.payment.count({ where: { status: { in: ["PENDING", "RECONCILING", "ONCHAIN_CONFIRMED"] } } }),
     db.payment.findMany({ orderBy: { createdAt: "desc" }, take: 8 }),
+    db.payment.findMany({
+      where: { status: "SETTLED" },
+      orderBy: { updatedAt: "desc" },
+      take: AVG_WINDOW,
+      select: { createdAt: true, updatedAt: true },
+    }),
   ]);
 
-  const volume = settled.reduce((acc, p) => acc + Number(p.sourceAmount), 0);
+  const volume = agg._sum.sourceAmount ? Number(agg._sum.sourceAmount) : 0;
   const avgMins =
-    settled.length === 0
+    recentSettled.length === 0
       ? 0
-      : settled.reduce((acc, p) => acc + (p.updatedAt.getTime() - p.createdAt.getTime()) / 60000, 0) / settled.length;
+      : recentSettled.reduce((acc, p) => acc + (p.updatedAt.getTime() - p.createdAt.getTime()) / 60000, 0) /
+        recentSettled.length;
 
   return {
     volumeSettled: volume.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
