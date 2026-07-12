@@ -5,6 +5,25 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Correctness: guard salary-advance settlement against concurrent double-settle — #143
+
+Third slice of the #143 audit (a Medium). `settleAdvancesForPayout`
+(`lib/hr/advances.ts`) read the employee's DISBURSED advances **outside** any
+transaction and then updated each **by `id` alone** — no status/outstanding
+guard. Two concurrent `pay-salary` runs for one employee both read the same
+outstanding and both wrote, silently losing one update (the ledger dropped once
+though the employee was charged twice; a partial deduction could also leave a
+stale outstanding).
+
+Fix: do the read **and** the guarded writes in one interactive `$transaction`,
+each write a **compare-and-set** (`updateMany where { id, status: "DISBURSED",
+outstanding: <as-read> }`). If a concurrent run already moved the advance, the
+stale write matches 0 rows → the whole settlement throws (409) and rolls back
+instead of double-decrementing. Matches the existing approve/disburse/reject
+guard pattern in the same file; the `pay-salary` route already surfaces a
+settle-time throw for reconciliation. Regression test drives two racing
+settlements and asserts the total repaid equals the true outstanding (not 2×).
+
 ## Demo: HR-payroll video walkthrough — #144
 
 Recorded walkthrough of the employee / HR-payroll suite (#133/#134/#135) so it
