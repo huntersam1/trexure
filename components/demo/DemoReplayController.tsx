@@ -21,6 +21,7 @@ export function DemoReplayController(props: {
   const router = useRouter();
   const [beat, setBeat] = useState<DemoBeat>("idle");
   const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const setStage = useCallback(
     (b: DemoBeat) => {
@@ -66,6 +67,7 @@ export function DemoReplayController(props: {
   const run = useCallback(async () => {
     if (running) return;
     setRunning(true);
+    setError(null);
     try {
       // Beat 0 — idempotent reset so replay can repeat.
       setStage("reset");
@@ -99,21 +101,29 @@ export function DemoReplayController(props: {
       setStage("receipt");
     } catch {
       setStage("error");
+      setError("Replay failed mid-run. The payment may be partially reset — run it again to retry.");
     } finally {
       setRunning(false);
     }
   }, [running, paymentId, intentId, amount, currency, recipientRef, pollUntilSettled, postJson, router, setStage]);
 
   return (
-    <button
-      type="button"
-      onClick={run}
-      disabled={running}
-      aria-disabled={running}
-      data-beat={beat}
-      className="inline-flex items-center gap-2 bg-accent text-on-primary rounded-lg font-bold px-6 py-2.5 shadow-lg shadow-accent/20 hover:opacity-90 active:scale-95 transition-all disabled:bg-surface-container-highest disabled:text-on-surface-variant disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-    >
-      {running ? `Replaying… (${beat})` : "Demo Replay"}
-    </button>
+    <span className="inline-flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={run}
+        disabled={running}
+        aria-disabled={running}
+        data-beat={beat}
+        className="inline-flex items-center gap-2 bg-accent text-on-primary rounded-lg font-bold px-6 py-2.5 shadow-lg shadow-accent/20 hover:opacity-90 active:scale-95 transition-all disabled:bg-surface-container-highest disabled:text-on-surface-variant disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        {running ? `Replaying… (${beat})` : "Demo Replay"}
+      </button>
+      {error && (
+        <p role="alert" className="text-body-sm text-error">
+          {error}
+        </p>
+      )}
+    </span>
   );
 }

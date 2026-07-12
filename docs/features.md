@@ -5,6 +5,25 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## UI polish slice 1: App Router state files + silent-failure fixes — #141
+
+First slice of the #141 UX audit (P0-1 and P0-4). The app previously had zero
+`error.tsx`/`loading.tsx`/`not-found.tsx` files — any server error rendered
+Next's unstyled default screen — and two recovery actions failed silently.
+
+- **State files:** root `app/global-error.tsx` (self-contained, inline-styled —
+  renders when the root layout itself throws), root `app/not-found.tsx`
+  (branded 404 for unmatched URLs and the 21 `notFound()` role/flag gates, with
+  a back-to-dashboard path), `app/(app)/error.tsx` (branded boundary inside the
+  shell with **Try again** via `reset()` + error digest), `app/(app)/loading.tsx`
+  (skeleton of the common page shape; `motion-reduce` respected).
+- **Silent failures fixed:** `RetryReconcileButton` and `RevokeKeyButton` now
+  check `res.ok`, catch network errors, and show an inline `role="alert"`
+  message instead of failing invisibly; `DemoReplayController` surfaces a
+  visible "Replay failed" message (previously only a `data-beat` attribute).
+- **Tests:** 8 new jsdom tests (success/non-ok/network per button, error
+  boundary render + reset). Live-verified the branded 404 on the dev server.
+
 ## Salary advance / earned wage access — #134
 
 Employees draw against earned-but-unpaid salary; the advance (+fee) is disbursed
