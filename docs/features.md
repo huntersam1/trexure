@@ -5,6 +5,28 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Performance: missing database indexes — #143
+
+Second slice of the #143 audit — the High/Medium **missing-index** findings.
+Adds four indexes (migration `add_perf_indexes`), all additive, no behavior
+change:
+
+- **`Payment(poolCommitment)`** (H3) — `lib/receiver/claim.ts` looks up the
+  disbursement by note commitment with **no** tenant filter, so it couldn't ride
+  the `[tenantId, …]` composites and did a full table scan on **every** claim.
+  Confirmed via `EXPLAIN`: now an index scan.
+- **`Notification(paymentId)`** — `markNotificationsClaimedForPayment` updateMany's
+  by `paymentId` on every claim (the FK column isn't auto-indexed in Postgres).
+- **`WebhookEvent(provider, createdAt)`** — provider-filtered, newest-first
+  scans (mock-anchor payouts view).
+- **`AuditLog(createdAt)`** — the platform-operator audit list reads newest-first
+  with no tenant filter, which the `[tenantId, createdAt]` composite can't serve.
+
+Deliberately **not** indexed: `Payment.poolNullifierHash` — it's only ever
+written / read on an already-loaded row, never a `where` key, so an index there
+would only add write cost. (H4 unbounded reads, H1 webhook trust model, and H2
+money-as-float remain open in #143.)
+
 ## Security C1: platform-admin boundary closes cross-tenant takeover — #143
 
 First slice of the #143 security audit — the **critical** finding (C1). The
