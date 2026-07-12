@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { CopyButton } from "@/components/ui/CopyButton";
 
-type DepositResult = { note: string; amount: number; txHash: string; explorerUrl: string };
+type DepositResult = { note: string; amount: string; txHash: string; explorerUrl: string };
 type WithdrawResult = { txHash: string; explorerUrl: string };
 type DemoResult = {
-  amount: number;
+  amount: string;
   note: string;
   recipient: string;
   deposit: { txHash: string; explorerUrl: string };
@@ -62,7 +62,7 @@ export function PoolRail({ csrfToken }: { csrfToken: string }): JSX.Element {
     setDepositErr(null);
     setDeposit(null);
     try {
-      setDeposit(await apiPost<DepositResult>("/api/pool/deposit", { amount: Number(amount) }, csrfToken));
+      setDeposit(await apiPost<DepositResult>("/api/pool/deposit", { amount }, csrfToken));
     } catch (e) {
       setDepositErr(errText(e));
     } finally {
@@ -88,7 +88,7 @@ export function PoolRail({ csrfToken }: { csrfToken: string }): JSX.Element {
     setDemoErr(null);
     setDemo(null);
     try {
-      setDemo(await apiPost<DemoResult>("/api/pool/demo", { amount: 10 }, csrfToken));
+      setDemo(await apiPost<DemoResult>("/api/pool/demo", { amount: "10" }, csrfToken));
     } catch (e) {
       setDemoErr(errText(e));
     } finally {

@@ -41,7 +41,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const batch = await createPoolBatch(session.tenantId, session.id, {
       receivers: [
-        { amount: Number(approved.net), ref: `Conversion — ${employee.name}`, email: employee.email },
+        { amount: approved.net, ref: `Conversion — ${employee.name}`, email: employee.email },
       ],
     });
     const row = batch.results[0];

@@ -12,7 +12,7 @@ import { emailClaimLink } from "@/lib/receiver/claim-link";
 import { createPoolDeposit } from "@/lib/pool/service";
 import { poolContractId } from "@/lib/pool/sync";
 import type { PoolBatchInput, PoolBatchReceiverInput } from "@/lib/validation/pool";
-import type { Prisma } from "@/lib/generated/prisma/client";
+import { Prisma } from "@/lib/generated/prisma/client";
 
 const asBytes = (b: Buffer): Uint8Array<ArrayBuffer> => b as unknown as Uint8Array<ArrayBuffer>;
 
@@ -62,7 +62,7 @@ export type BatchReceiverSuccess = {
   ok: true;
   ref: string;
   email: string | null;
-  amount: number;
+  amount: string;
   paymentId: string;
   intentId: string;
   note: string;
@@ -82,7 +82,7 @@ export type BatchReceiverFailure = {
   ok: false;
   ref: string;
   email: string | null;
-  amount: number;
+  amount: string;
   error: string;
 };
 
@@ -92,7 +92,7 @@ export type PoolBatchResult = {
   batchId: string;
   requested: number; // rows submitted
   count: number; // rows that succeeded
-  totalSourceAmount: number; // sum of successful amounts (XLM)
+  totalSourceAmount: string; // sum of successful amounts (XLM), Decimal string
   poolContractId: string;
   claimUrl: string;
   results: BatchReceiverResult[];
@@ -161,7 +161,8 @@ export async function createPoolBatch(
 
   const results: BatchReceiverResult[] = [];
   let successCount = 0;
-  let successTotal = 0;
+  // Accumulate money as Decimal, never a float sum (#143 H2).
+  let successTotal = new Prisma.Decimal(0);
 
   for (const receiver of input.receivers as PoolBatchReceiverInput[]) {
     const email = receiver.email ?? null;
@@ -212,7 +213,7 @@ export async function createPoolBatch(
           : false;
 
       successCount += 1;
-      successTotal += receiver.amount;
+      successTotal = successTotal.plus(receiver.amount);
       results.push({
         ok: true,
         ref: receiver.ref,
@@ -237,7 +238,7 @@ export async function createPoolBatch(
   // Reconcile the batch roll-up to what actually landed.
   await db.paymentBatch.update({
     where: { id: batch.id },
-    data: { count: successCount, totalSourceAmount: String(successTotal) },
+    data: { count: successCount, totalSourceAmount: successTotal.toString() },
   });
 
   logger.info(
@@ -249,7 +250,7 @@ export async function createPoolBatch(
     batchId: batch.id,
     requested: input.receivers.length,
     count: successCount,
-    totalSourceAmount: successTotal,
+    totalSourceAmount: successTotal.toString(),
     poolContractId: contractId,
     claimUrl,
     results,

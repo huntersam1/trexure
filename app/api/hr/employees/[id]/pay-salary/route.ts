@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const net = new Prisma.Decimal(payout.net);
     if (net.gt(0)) {
       const batch = await createPoolBatch(session.tenantId, session.id, {
-        receivers: [{ amount: Number(payout.net), ref: `Salary — ${employee.name}`, email: employee.email }],
+        receivers: [{ amount: payout.net, ref: `Salary — ${employee.name}`, email: employee.email }],
       });
       const row = batch.results[0];
       if (!row || !row.ok) {

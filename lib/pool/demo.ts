@@ -13,7 +13,7 @@ import type { PoolDemoInput } from "@/lib/validation/pool";
  * fresh recipient is funded via Friendbot so the native transfer lands.
  */
 export type PoolDemoResult = {
-  amount: number;
+  amount: string;
   note: string;
   recipient: string;
   deposit: { txHash: string; explorerUrl: string };
