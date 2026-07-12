@@ -5,6 +5,25 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Performance: bounded/aggregated dashboard KPIs (H4) — #143
+
+Part of the H4 finding (unbounded reads). The dashboard — the most-hit page —
+did `findMany({ where: { status: "SETTLED" } })` with **no `take`** and summed /
+averaged in JS, so it grew linearly with lifetime settled volume forever (and
+accumulated `volumeSettled` as a `Number` float).
+
+- **Volume** is now a DB `aggregate({ _sum: { sourceAmount } })` — bounded and
+  exact (no more `Number(...)` reduce).
+- **Settlement-time average** samples a bounded most-recent window
+  (`orderBy: updatedAt desc, take: 200`) instead of every settled row ever. A
+  timestamp-difference average has no Prisma `_avg`, and this keeps the "no raw
+  SQL" property; the trade-off is that the average reflects recent activity
+  rather than all-time (well-suited to a live KPI).
+
+Still open in H4: cursor-batching the report builders (`reconciliation` / `fx` /
+`disclosure`) so a wide date range doesn't load every row + leg + receipt into
+memory at once.
+
 ## Correctness: atomic idempotency on payment creation — #143
 
 A Medium finding. `POST /api/payments` did check-then-act (`getCachedIdempotent`
