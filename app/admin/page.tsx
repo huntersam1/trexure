@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { requireAdmin } from "../../lib/auth/session";
+import { requireSession } from "../../lib/auth/session";
 import { CSRF_COOKIE_NAME } from "../../lib/auth/csrf";
 import { listTenantsWithCounts, listWebhookEvents, recentAuditLogs } from "../../lib/admin/queries";
 import { CreateUserForm } from "./_components/create-user-form";
@@ -13,7 +14,10 @@ const th = "text-left text-label-mono uppercase tracking-widest font-bold text-o
 const td = "px-4 py-3 text-body-sm text-on-surface";
 
 export default async function AdminPage() {
-  await requireAdmin();
+  // Platform-operator console (#143 C1). Non-operators get a 404 rather than a
+  // 403 so the console's existence isn't disclosed to tenant admins.
+  const user = await requireSession();
+  if (!user.isPlatformAdmin) notFound();
   const [tenants, webhooks, audits] = await Promise.all([
     listTenantsWithCounts(),
     listWebhookEvents(10),

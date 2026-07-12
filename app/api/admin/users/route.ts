@@ -1,4 +1,4 @@
-import { requireAdmin } from "../../../../lib/auth/session";
+import { requirePlatformAdmin } from "../../../../lib/auth/session";
 import { assertCsrf } from "../../../../lib/auth/csrf";
 import { hashPassword } from "../../../../lib/auth/password";
 import { prisma } from "../../../../lib/db";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const admin = await requireAdmin();
+    const admin = await requirePlatformAdmin();
     assertCsrf(req);
 
     const json = await req.json().catch(() => null);

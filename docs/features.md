@@ -27,6 +27,27 @@ written / read on an already-loaded row, never a `where` key, so an index there
 would only add write cost. (H4 unbounded reads, H1 webhook trust model, and H2
 money-as-float remain open in #143.)
 
+## Security C1: platform-admin boundary closes cross-tenant takeover — #143
+
+First slice of the #143 security audit — the **critical** finding (C1). The
+`/admin` console was built as a cross-tenant *operator* view (enumerate every
+tenant, create users in any tenant, read the global webhook/audit logs) but was
+gated only by `requireAdmin()`, i.e. `role === "ADMIN"`. Since self-signup makes
+every user an ADMIN of its own tenant, any tenant admin could enumerate a victim
+tenant and mint an ADMIN inside it → full multi-tenant account takeover.
+
+- **New `User.isPlatformAdmin` flag** (`Boolean @default(false)`, migration
+  `add_platform_admin_flag`). `role` stays a per-tenant role; this is the
+  cross-tenant operator boundary.
+- **New `requirePlatformAdmin()`** in `lib/auth/session.ts` (requires the flag,
+  not just ADMIN). The `/api/admin/{users,tenants,webhook-events}` routes now use
+  it (403 for non-operators); the `/admin` + `/admin/webhooks` pages use
+  `requireSession()` + `notFound()` so the console's existence isn't disclosed.
+- **Seed:** the HQ operator (`SEED_ADMIN_USERNAME`) is the sole `isPlatformAdmin`,
+  so the console keeps working in demos while self-signup admins stay confined to
+  their own tenant. Tenant-scoped admin operations (HR, reports) are unchanged —
+  they remain on `requireAdmin`.
+
 ## UI polish slice 1: App Router state files + silent-failure fixes — #141
 
 First slice of the #141 UX audit (P0-1 and P0-4). The app previously had zero

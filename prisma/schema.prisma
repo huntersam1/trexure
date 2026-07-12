@@ -99,6 +99,11 @@ model User {
   username       String         @unique
   passwordHash   String // argon2id; NEVER plaintext
   role           Role           @default(MEMBER)
+  // Platform-operator boundary (#143 C1). `role` is a TENANT role — every
+  // self-signup becomes ADMIN of its own workspace. Cross-tenant operator
+  // surfaces (the /admin console) require this flag, which self-signup never
+  // grants; only the seeded HQ operator (or another platform admin) has it.
+  isPlatformAdmin Boolean       @default(false)
   sessions       Session[]
   createdBatches PaymentBatch[]
   createdAt      DateTime       @default(now())

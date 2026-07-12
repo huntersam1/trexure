@@ -10,6 +10,9 @@ export type SessionUser = {
   username: string;
   role: "ADMIN" | "MEMBER";
   tenantId: string;
+  // Platform-operator flag (#143 C1). `role` is a per-tenant role; this is the
+  // cross-tenant boundary that gates the /admin platform console.
+  isPlatformAdmin: boolean;
 };
 
 const SLIDING_TTL_MS = 1000 * 60 * 60 * 24;      // 24h sliding window
@@ -45,7 +48,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, username: true, role: true, tenantId: true } } },
+    include: { user: { select: { id: true, username: true, role: true, tenantId: true, isPlatformAdmin: true } } },
   });
   if (!session) return null;
 
@@ -85,5 +88,16 @@ export async function requireSession(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireSession();
   if (user.role !== "ADMIN") throw new AppError(403, "Forbidden", "Administrator role required.");
+  return user;
+}
+
+// Platform-operator gate (#143 C1). Distinct from requireAdmin (a per-tenant
+// role): only a platform admin may reach cross-tenant surfaces such as the
+// /admin console — enumerate every tenant, create users in any tenant, read
+// the global webhook/audit logs. requireAdmin alone is NOT sufficient there,
+// because self-signup makes every user an ADMIN of its own tenant.
+export async function requirePlatformAdmin(): Promise<SessionUser> {
+  const user = await requireSession();
+  if (!user.isPlatformAdmin) throw new AppError(403, "Forbidden", "Platform administrator access required.");
   return user;
 }
