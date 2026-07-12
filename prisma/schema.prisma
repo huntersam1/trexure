@@ -217,6 +217,12 @@ model Payment {
   @@index([tenantId, createdAt])
   @@index([batchId])
   @@index([receiverId])
+  // Claim lookups (#143 H3) are GLOBAL — `lib/receiver/claim.ts` finds the
+  // disbursement by note commitment with no tenant filter, so it can't ride the
+  // composite [tenantId, …] indexes and was a full table scan on every claim.
+  // (No index on poolNullifierHash: it's only written/read on the already-loaded
+  // row, never a `where` key — double-spend is guarded there + on-chain.)
+  @@index([poolCommitment])
 }
 
 // Emailed claim link (#81, follow-up to batch epic #80). For an OFF-platform
@@ -288,6 +294,9 @@ model Notification {
   // idempotent on batch retry.
   @@unique([receiverId, paymentId])
   @@index([receiverId, readAt])
+  // markNotificationsClaimedForPayment (#143) updateMany's by paymentId on every
+  // claim; the FK column isn't auto-indexed in Postgres.
+  @@index([paymentId])
 }
 
 model PaymentLeg {
@@ -358,6 +367,9 @@ model WebhookEvent {
   createdAt   DateTime  @default(now())
 
   @@unique([provider, externalId])
+  // Provider-scoped, newest-first scans (#143): the mock-anchor payouts view
+  // filters by provider + orders by createdAt.
+  @@index([provider, createdAt])
 }
 
 model AuditLog {
@@ -371,6 +383,9 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   @@index([tenantId, createdAt])
+  // The platform-operator audit list (#143) reads newest-first with NO tenant
+  // filter, which can't use the [tenantId, createdAt] composite.
+  @@index([createdAt])
 }
 
 // --- Employee onboarding / HR (#133) -------------------------------------
