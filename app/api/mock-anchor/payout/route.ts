@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { env } from "@/lib/env";
 import { requireSession } from "@/lib/auth/session";
+import { assertCsrf } from "@/lib/auth/csrf";
 import { problem, AppError } from "@/lib/http/problem";
 import { mockPayoutSchema } from "@/lib/validation/webhooks";
 import { triggerMockPayout } from "@/lib/anchor/mock";
@@ -15,6 +16,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   try {
     await requireSession();
+    assertCsrf(req); // state-changing POST — double-submit + origin (#143)
     const body = await req.json().catch(() => null);
     const parsed = mockPayoutSchema.safeParse(body);
     if (!parsed.success) {

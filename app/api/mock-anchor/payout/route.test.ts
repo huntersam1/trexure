@@ -9,10 +9,14 @@ vi.mock("@/lib/auth/session", () => ({
   requireSession: vi.fn().mockResolvedValue({ id: "u1", username: "admin", role: "ADMIN", tenantId: "t1" }),
 }));
 
+const assertCsrf = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/auth/csrf", () => ({ assertCsrf }));
+
 const trigger = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/anchor/mock", () => ({ triggerMockPayout: trigger }));
 
 import { POST } from "@/app/api/mock-anchor/payout/route";
+import { AppError } from "@/lib/http/problem";
 
 function reqFor(body: object) {
   return new Request("http://localhost:3000/api/mock-anchor/payout", {
@@ -48,6 +52,15 @@ describe("POST /api/mock-anchor/payout", () => {
   it("returns 400 on an invalid body", async () => {
     const res = await POST(reqFor({ intentId: "i", oops: true }));
     expect(res.status).toBe(400);
+    expect(trigger).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 and does not trigger a payout when CSRF fails (#143)", async () => {
+    assertCsrf.mockImplementationOnce(() => {
+      throw new AppError(403, "Forbidden", "Invalid CSRF token");
+    });
+    const res = await POST(reqFor(validBody));
+    expect(res.status).toBe(403);
     expect(trigger).not.toHaveBeenCalled();
   });
 });
