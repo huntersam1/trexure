@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/session";
 import { assertCsrf } from "@/lib/auth/csrf";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { createPoolDeposit } from "@/lib/pool/service";
 import { poolDepositSchema } from "@/lib/validation/pool";
 import { problem, AppError } from "@/lib/http/problem";
@@ -19,8 +20,11 @@ export async function POST(req: Request): Promise<Response> {
     return problem(404, "Not Found", "The private on-chain transfer rail is disabled");
   }
   try {
-    await requireSession();
+    const session = await requireSession();
     assertCsrf(req);
+    // Real testnet deposit — throttle per tenant (#143).
+    const limited = await enforceRateLimit(`pool-deposit:${session.tenantId}`, { limit: 15, windowSec: 60 });
+    if (limited) return limited;
 
     const json = await req.json().catch(() => null);
     const parsed = poolDepositSchema.safeParse(json);

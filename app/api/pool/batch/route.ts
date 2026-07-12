@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/session";
 import { assertCsrf } from "@/lib/auth/csrf";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { createPoolBatch } from "@/lib/pool/batch";
 import { poolBatchSchema } from "@/lib/validation/pool";
 import { problem, AppError } from "@/lib/http/problem";
@@ -22,6 +23,9 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const session = await requireSession();
     assertCsrf(req);
+    // N real testnet deposits per call — throttle per tenant (#143).
+    const limited = await enforceRateLimit(`pool-batch:${session.tenantId}`, { limit: 10, windowSec: 60 });
+    if (limited) return limited;
 
     const json = await req.json().catch(() => null);
     const parsed = poolBatchSchema.safeParse(json);

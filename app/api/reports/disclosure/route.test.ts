@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError } from "@/lib/http/problem";
 
+vi.mock("@/lib/auth/rate-limit", () => ({ enforceRateLimit: vi.fn(async () => null) }));
 vi.mock("server-only", () => ({}));
 
 const h = vi.hoisted(() => ({

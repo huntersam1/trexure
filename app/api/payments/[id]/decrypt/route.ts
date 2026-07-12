@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/session";
 import { assertCsrf } from "@/lib/auth/csrf";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { forTenant } from "@/lib/db";
 import { loadViewKey } from "@/lib/crypto/viewkey";
 import { decryptWithViewKey } from "@/lib/zk";
@@ -17,6 +18,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const session = await requireSession(); // 401 if absent; carries tenantId
     assertCsrf(req); // Origin/Sec-Fetch-Site + double-submit token; 403 on failure
+    // View-key AES decrypt (audited) — throttle per tenant (#143).
+    const limited = await enforceRateLimit(`decrypt:${session.tenantId}`, { limit: 30, windowSec: 60 });
+    if (limited) return limited;
 
     const { id } = decryptSchema.parse(await ctx.params);
     const db = forTenant(session.tenantId); // tenant-scoped: other tenants' rows are invisible

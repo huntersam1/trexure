@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth/session";
 import { assertCsrf } from "@/lib/auth/csrf";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { forTenant } from "@/lib/db";
 import { loadViewKey } from "@/lib/crypto/viewkey";
 import { verifyPaymentProofOnChain } from "@/lib/zk/groth16";
@@ -17,6 +18,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   try {
     const session = await requireSession();
     assertCsrf(req);
+    // Groth16 prover + Soroban RPC per call — throttle per tenant (#143).
+    const limited = await enforceRateLimit(`verify-proof:${session.tenantId}`, { limit: 15, windowSec: 60 });
+    if (limited) return limited;
 
     const { id } = await ctx.params;
     const db = forTenant(session.tenantId);

@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/auth/session";
+import { enforceRateLimit } from "@/lib/auth/rate-limit";
 import { problem, AppError } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
 import { parseDateRange, toDateInput } from "@/lib/reports/scope";
@@ -33,6 +34,9 @@ export async function GET(req: Request): Promise<Response> {
     if (req.headers.get("sec-fetch-site") === "cross-site") {
       return problem(403, "Forbidden", "Cross-site request not allowed.");
     }
+    // Decrypts every shielded payment in the range — throttle per tenant (#143).
+    const limited = await enforceRateLimit(`report-disclosure:${admin.tenantId}`, { limit: 10, windowSec: 60 });
+    if (limited) return limited;
 
     const url = new URL(req.url);
     const fmt = url.searchParams.get("format");

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findUnique = vi.fn();
 const auditCreate = vi.fn(async (_arg: any) => ({}));
+vi.mock("@/lib/auth/rate-limit", () => ({ enforceRateLimit: vi.fn(async () => null) }));
 vi.mock("@/lib/db", () => ({
   forTenant: vi.fn(() => ({
     payment: { findUnique },

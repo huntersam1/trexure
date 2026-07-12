@@ -7,6 +7,7 @@ const { requireSession, assertCsrf, createPoolWithdraw, envMock } = vi.hoisted((
   envMock: { ENABLE_POOL_RAIL: true },
 }));
 
+vi.mock("@/lib/auth/rate-limit", () => ({ enforceRateLimit: vi.fn(async () => null) }));
 vi.mock("@/lib/auth/session", () => ({ requireSession }));
 vi.mock("@/lib/auth/csrf", () => ({ assertCsrf }));
 vi.mock("@/lib/pool/service", () => ({ createPoolWithdraw }));

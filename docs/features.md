@@ -5,6 +5,19 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Security: rate-limit expensive authenticated endpoints — #143
+
+A Medium finding. Only login / signup / webhooks / verify-token were throttled, so
+an authenticated user could pin CPU and run up RPC/testnet cost on the expensive
+endpoints. Added a shared `enforceRateLimit(key, {limit, windowSec})` helper
+(returns a 429 `problem+json` with `Retry-After`, or null) and applied it
+**per-tenant, after auth**, on:
+
+- `POST /api/payments/[id]/verify-proof` (Groth16 + Soroban RPC) — 15/min
+- `POST /api/payments/[id]/decrypt` (view-key AES) — 30/min
+- `GET /api/reports/disclosure` (decrypts every shielded payment in range) — 10/min
+- `POST /api/pool/{deposit,withdraw,batch}` (real testnet tx) — 15 / 15 / 10 per min
+
 ## Security: login-action anti-enumeration + `X-Powered-By` off (lows) — #143
 
 Two low-severity hardening items from the audit.
