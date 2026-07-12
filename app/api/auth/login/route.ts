@@ -1,19 +1,11 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 import { loginSchema } from "@/lib/validation/auth";
 import { prisma } from "@/lib/db";
-import { verifyPassword, hashPassword } from "@/lib/auth/password";
+import { verifyPassword, getDummyHash } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/auth/rate-limit";
 import { problem } from "@/lib/http/problem";
 import { logger } from "@/lib/log";
-
-// Lazily-computed dummy hash so unknown usernames still pay the verify cost (anti-enumeration timing).
-let dummyHashPromise: Promise<string> | null = null;
-function getDummyHash(): Promise<string> {
-  if (!dummyHashPromise) dummyHashPromise = hashPassword(randomBytes(16).toString("hex"));
-  return dummyHashPromise;
-}
 
 export async function POST(req: Request): Promise<Response> {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";

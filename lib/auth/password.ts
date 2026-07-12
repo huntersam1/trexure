@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import argon2 from "argon2";
 
 const ARGON2_OPTIONS: argon2.Options = {
@@ -20,4 +21,13 @@ export async function verifyPassword(hash: string, plain: string): Promise<boole
     // Malformed/empty hash → treat as a failed verification, never throw.
     return false;
   }
+}
+
+// Lazily-computed dummy hash so an unknown username still pays the argon2 verify
+// cost — no login-timing user-enumeration oracle (#143). Shared by the login
+// API route and the login server action.
+let dummyHashPromise: Promise<string> | null = null;
+export function getDummyHash(): Promise<string> {
+  if (!dummyHashPromise) dummyHashPromise = hashPassword(randomBytes(16).toString("hex"));
+  return dummyHashPromise;
 }

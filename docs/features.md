@@ -5,6 +5,20 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Security: login-action anti-enumeration + `X-Powered-By` off (lows) — #143
+
+Two low-severity hardening items from the audit.
+
+- **Login server action** (the form path users actually hit) now matches the
+  `/api/auth/login` route: it throttles per-IP (10/5min) and per-username
+  (5/5min), and **always runs an argon2 verify** — against a shared dummy hash
+  when the username is unknown — so response timing no longer reveals whether a
+  username exists. The dummy-hash helper is extracted to `lib/auth/password.ts`
+  (`getDummyHash`) and shared by the route and the action. (Signup already had
+  rate-limiting.)
+- **`poweredByHeader: false`** in `next.config.ts` — stop advertising the
+  framework via `X-Powered-By`.
+
 ## Performance: bounded/aggregated dashboard KPIs (H4) — #143
 
 Part of the H4 finding (unbounded reads). The dashboard — the most-hit page —

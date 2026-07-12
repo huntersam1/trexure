@@ -17,7 +17,7 @@ const { createSession, rateLimit, verifyPassword, auditCreate, findUnique } = vi
 
 vi.mock("@/lib/auth/session", () => ({ createSession }));
 vi.mock("@/lib/auth/rate-limit", () => ({ rateLimit }));
-vi.mock("@/lib/auth/password", () => ({ verifyPassword, hashPassword: async () => "$argon2id$dummy" }));
+vi.mock("@/lib/auth/password", () => ({ verifyPassword, getDummyHash: async () => "$argon2id$dummy" }));
 vi.mock("@/lib/db", () => ({ prisma: { user: { findUnique }, auditLog: { create: auditCreate } } }));
 vi.mock("@/lib/log", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 

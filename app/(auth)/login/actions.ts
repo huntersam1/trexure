@@ -3,7 +3,8 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession } from "@/lib/auth/session";
-import { verifyPassword } from "@/lib/auth/password";
+import { verifyPassword, getDummyHash } from "@/lib/auth/password";
+import { rateLimit } from "@/lib/auth/rate-limit";
 import { issueCsrfToken, CSRF_COOKIE_NAME, assertSameOrigin } from "@/lib/auth/csrf";
 import { prisma } from "@/lib/db";
 import { loginFormSchema } from "@/lib/validation/payment-ui";
@@ -21,9 +22,22 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     password: formData.get("password"),
   });
   if (!parsed.success) return { error: GENERIC };
+  const { username, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { username: parsed.data.username } });
-  const ok = user ? await verifyPassword(user.passwordHash, parsed.data.password) : false;
+  // Same protections as the /api/auth/login route (#143): throttle per-IP and
+  // per-username, and always run a verify (real or dummy hash) so an unknown
+  // username can't be told apart by response timing.
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const [ipLimit, userLimit] = await Promise.all([
+    rateLimit(`login:ip:${ip}`, { limit: 10, windowSec: 300 }),
+    rateLimit(`login:user:${username}`, { limit: 5, windowSec: 300 }),
+  ]);
+  if (!ipLimit.allowed || !userLimit.allowed) {
+    return { error: "Too many login attempts. Please try again later." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { username } });
+  const ok = await verifyPassword(user?.passwordHash ?? (await getDummyHash()), password);
   if (!user || !ok) return { error: GENERIC };
 
   await createSession(user.id, h.get("x-forwarded-for") ?? undefined, h.get("user-agent") ?? undefined);

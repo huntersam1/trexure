@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false, // don't advertise the framework via X-Powered-By (#143)
   serverExternalPackages: [
     "argon2",
     "pg",
