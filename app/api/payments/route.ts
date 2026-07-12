@@ -3,7 +3,7 @@ import { requireSession } from "../../../lib/auth/session";
 import { assertCsrf } from "../../../lib/auth/csrf";
 import { createPayment, listPayments } from "../../../lib/payments/service";
 import { createPaymentSchema, listPaymentsQuerySchema } from "../../../lib/validation/payments";
-import { getCachedIdempotent, setCachedIdempotent } from "../../../lib/idempotency";
+import { reserveIdempotent, setCachedIdempotent, releaseIdempotent, IDEM_PENDING } from "../../../lib/idempotency";
 import { problem, AppError } from "../../../lib/http/problem";
 import { env } from "../../../lib/env";
 
@@ -32,14 +32,28 @@ export async function POST(req: Request): Promise<Response> {
     const idemKey = req.headers.get("idempotency-key");
     const scope = `payments:${user.tenantId}`;
 
+    // Reserve the key ATOMICALLY before submitting (#143). Two concurrent
+    // requests with the same key can't both reach createPayment: exactly one
+    // wins the SET NX; the loser returns the finalized id (200) or, if the
+    // winner is still in flight, 409 to retry.
     if (idemKey) {
-      const cachedId = await getCachedIdempotent(scope, idemKey);
-      if (cachedId) {
-        return NextResponse.json({ id: cachedId, status: "PENDING", idempotent: true }, { status: 200 });
+      const { reserved, existing } = await reserveIdempotent(scope, idemKey);
+      if (!reserved) {
+        if (existing && existing !== IDEM_PENDING) {
+          return NextResponse.json({ id: existing, status: "PENDING", idempotent: true }, { status: 200 });
+        }
+        return problem(409, "In progress", "A payment with this Idempotency-Key is already being processed. Retry shortly.");
       }
     }
 
-    const result = await createPayment(user.tenantId, parsed.data);
+    let result;
+    try {
+      result = await createPayment(user.tenantId, parsed.data);
+    } catch (workErr) {
+      // Release the reservation so a legitimate retry isn't locked out.
+      if (idemKey) await releaseIdempotent(scope, idemKey);
+      throw workErr;
+    }
 
     if (idemKey) {
       await setCachedIdempotent(scope, idemKey, result.id);

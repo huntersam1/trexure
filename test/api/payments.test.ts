@@ -11,9 +11,19 @@ vi.mock("../../lib/env", () => ({ env: envMock }));
 vi.mock("../../lib/auth/session", () => ({ requireSession }));
 vi.mock("../../lib/auth/csrf", () => ({ assertCsrf }));
 vi.mock("../../lib/payments/service", () => ({ createPayment, listPayments, getPaymentById: vi.fn(), enqueueReconcile: vi.fn() }));
+const IDEM_PENDING = "__pending__";
 vi.mock("../../lib/idempotency", () => ({
-  getCachedIdempotent: vi.fn(async (s: string, k: string) => idemStore.get(`${s}:${k}`) ?? null),
+  IDEM_PENDING,
+  // Model the real SET NX reservation: first caller wins, later callers see the
+  // stored value (pending sentinel or finalized id).
+  reserveIdempotent: vi.fn(async (s: string, k: string) => {
+    const key = `${s}:${k}`;
+    if (idemStore.has(key)) return { reserved: false, existing: idemStore.get(key) ?? null };
+    idemStore.set(key, IDEM_PENDING);
+    return { reserved: true, existing: null };
+  }),
   setCachedIdempotent: vi.fn(async (s: string, k: string, v: string) => { idemStore.set(`${s}:${k}`, v); }),
+  releaseIdempotent: vi.fn(async (s: string, k: string) => { idemStore.delete(`${s}:${k}`); }),
 }));
 
 beforeEach(() => {
@@ -66,6 +76,26 @@ describe("POST /api/payments", () => {
     expect((await first.json()).id).toBe("pay_dedup");
     expect((await second.json()).id).toBe("pay_dedup");
     expect(createPayment).toHaveBeenCalledOnce(); // second served from cache
+  });
+
+  it("returns 409 (no second submit) while a same-key request is still in flight (#143)", async () => {
+    idemStore.set("payments:t1:inflight", IDEM_PENDING); // a concurrent request holds the reservation
+    const { POST } = await import("../../app/api/payments/route");
+    const res = await POST(makeReq(validBody, { "idempotency-key": "inflight" }));
+    expect(res.status).toBe(409);
+    expect(createPayment).not.toHaveBeenCalled();
+  });
+
+  it("releases the reservation if createPayment throws, so a retry can proceed (#143)", async () => {
+    createPayment.mockRejectedValueOnce(new Error("soroban timeout"));
+    const { POST } = await import("../../app/api/payments/route");
+    const first = await POST(makeReq(validBody, { "idempotency-key": "retry" }));
+    expect(first.status).toBe(500);
+    // Reservation released → a retry reserves fresh and submits.
+    createPayment.mockResolvedValue({ id: "pay_retry", intentId: "i", status: "PENDING" });
+    const second = await POST(makeReq(validBody, { "idempotency-key": "retry" }));
+    expect(second.status).toBe(201);
+    expect((await second.json()).id).toBe("pay_retry");
   });
 });
 
