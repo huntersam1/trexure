@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireAdmin } from "../../../lib/auth/session";
+import { notFound } from "next/navigation";
+import { requireSession } from "../../../lib/auth/session";
 import { listWebhookEvents } from "../../../lib/admin/queries";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,9 @@ const th = "text-left text-label-mono uppercase tracking-widest font-bold text-o
 const td = "px-4 py-3 text-body-sm";
 
 export default async function AdminWebhooksPage() {
-  await requireAdmin();
+  // Platform-operator console (#143 C1) — 404 for non-operators (see /admin).
+  const user = await requireSession();
+  if (!user.isPlatformAdmin) notFound();
   const events = await listWebhookEvents(200);
 
   return (

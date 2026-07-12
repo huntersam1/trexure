@@ -16,7 +16,7 @@ vi.mock("@/lib/env", () => ({ env: { SESSION_COOKIE_NAME: "__Host-trexure_sessio
 // --- In-memory prisma.session + user join ---
 type Row = { id: string; userId: string; tokenHash: string; expiresAt: Date; createdAt: Date };
 const sessions: Row[] = [];
-const users = [{ id: "u1", username: "admin", role: "ADMIN" as const, tenantId: "t1" }];
+const users = [{ id: "u1", username: "admin", role: "ADMIN" as const, tenantId: "t1", isPlatformAdmin: false }];
 vi.mock("@/lib/db", () => ({
   prisma: {
     session: {
@@ -51,7 +51,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { createSession, getSessionUser, destroySession, requireSession, requireAdmin } from "@/lib/auth/session";
+import { createSession, getSessionUser, destroySession, requireSession, requireAdmin, requirePlatformAdmin } from "@/lib/auth/session";
 import { AppError } from "@/lib/http/problem";
 
 const COOKIE = "__Host-trexure_session";
@@ -74,7 +74,7 @@ describe("session", () => {
   it("validates a live session and returns the joined user", async () => {
     await createSession("u1");
     const user = await getSessionUser();
-    expect(user).toEqual({ id: "u1", username: "admin", role: "ADMIN", tenantId: "t1" });
+    expect(user).toEqual({ id: "u1", username: "admin", role: "ADMIN", tenantId: "t1", isPlatformAdmin: false });
   });
 
   it("rejects an expired session and removes the row", async () => {
@@ -102,5 +102,15 @@ describe("session", () => {
     users[0]!.role = "MEMBER" as any;
     await expect(requireAdmin()).rejects.toMatchObject({ status: 403 });
     users[0]!.role = "ADMIN" as any;
+  });
+
+  it("requirePlatformAdmin 403s a tenant ADMIN and allows only platform admins (#143 C1)", async () => {
+    await createSession("u1");
+    // A self-signup tenant ADMIN (role ADMIN, isPlatformAdmin false) must NOT
+    // pass the platform gate — this is the core C1 fix.
+    await expect(requirePlatformAdmin()).rejects.toMatchObject({ status: 403 });
+    users[0]!.isPlatformAdmin = true;
+    expect((await requirePlatformAdmin()).isPlatformAdmin).toBe(true);
+    users[0]!.isPlatformAdmin = false;
   });
 });

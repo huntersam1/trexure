@@ -1,15 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppError } from "../../lib/http/problem";
 
-const { requireAdmin, assertCsrf, hashPassword, create, recordAudit } = vi.hoisted(() => ({
-  requireAdmin: vi.fn(),
+const { requirePlatformAdmin, assertCsrf, hashPassword, create, recordAudit } = vi.hoisted(() => ({
+  requirePlatformAdmin: vi.fn(),
   assertCsrf: vi.fn(),
   hashPassword: vi.fn(),
   create: vi.fn(),
   recordAudit: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("../../lib/auth/session", () => ({ requireAdmin }));
+vi.mock("../../lib/auth/session", () => ({ requirePlatformAdmin }));
 vi.mock("../../lib/auth/csrf", () => ({ assertCsrf }));
 vi.mock("../../lib/auth/password", () => ({ hashPassword }));
 vi.mock("../../lib/db", () => ({ prisma: { user: { create } } }));
@@ -28,7 +28,7 @@ const valid = { username: "bob", password: "correct-horse-battery", role: "MEMBE
 
 describe("POST /api/admin/users", () => {
   beforeEach(() => {
-    requireAdmin.mockReset().mockResolvedValue({ id: "u_admin", role: "ADMIN" });
+    requirePlatformAdmin.mockReset().mockResolvedValue({ id: "u_admin", role: "ADMIN", isPlatformAdmin: true });
     assertCsrf.mockReset();
     hashPassword.mockReset().mockResolvedValue("$argon2id$v=19$m=...$hash");
     create.mockReset().mockResolvedValue({ id: "u_new", username: "bob", role: "MEMBER", tenantId: valid.tenantId, passwordHash: "$argon2id$..." });
@@ -58,8 +58,8 @@ describe("POST /api/admin/users", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it("returns 403 for a non-admin", async () => {
-    requireAdmin.mockRejectedValue(new AppError(403, "Forbidden"));
+  it("returns 403 for a non-platform-admin (C1: a tenant ADMIN cannot create users)", async () => {
+    requirePlatformAdmin.mockRejectedValue(new AppError(403, "Forbidden", "Platform administrator access required."));
     const res = await POST(req(valid));
     expect(res.status).toBe(403);
     expect(create).not.toHaveBeenCalled();
