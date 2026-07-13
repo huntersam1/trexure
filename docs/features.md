@@ -5,6 +5,30 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P3 sweep-out + liquidity-sacred fallback — #164 (epic #161)
+
+At disbursement, the payment's yield position is unwound (YLDS → USDC), the
+accrued yield is recorded, and the liquid funds back the payout. **Liquidity is
+sacred**: a failed unwind never blocks or delays the payout.
+
+- **`lib/yield/accrual.ts`** — `accrueYield`: simulated linear accrual at a demo
+  5% APY over the hold (funding → disbursement). Pure Decimal, deterministic.
+- **`lib/yield/sweep.ts`** — `sweepOut(tenantId, paymentId, { now? })`: unwinds a
+  `SWEPT_IN` position (simulated swap on `principal + accruedYield`), persists
+  sweep-out (tx, ledger, returned amount, `accruedYield`) and flips the position
+  + payment to `SWEPT_OUT`, in one `$transaction`. Idempotent (replays the prior
+  outcome); flag- and position-gated. **Never throws.**
+- **Liquidity-sacred fallback**: if the unwind throws, the position is marked
+  `FAILED`, an alert is raised (`recordAudit` `yield.unwind.failed` + `logger.error`),
+  and a `fallback` result is returned with the `shortfall` the caller draws from
+  the liquid `minIdleBuffer` — the payout window is never missed.
+- **Wiring**: the disbursement trigger (`POST /api/mock-anchor/payout`) unwinds
+  before paying out, symmetric with P2's sweep-in at funding. Flag-gated (default
+  off → no-op).
+- Tests: accrual (linear/full-year/zero), DB-backed sweep-out (unwind + accrual +
+  transition, flag-off/no-position skips, idempotency, **failed-unwind → fallback +
+  audit alert + no re-alert**). 33 yield tests green.
+
 ## Treasury Float Yield — P2 sweep-in engine — #163 (epic #161)
 
 When a yield-enabled tenant funds a payment intent, the eligible idle balance is
