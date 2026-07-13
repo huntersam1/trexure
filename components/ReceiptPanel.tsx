@@ -56,6 +56,25 @@ export function ReceiptPanel({ receipt, onExport }: { receipt: DisplayReceipt; o
           {receipt.fees && <Line label="Platform Fee" value={receipt.fees.platform} />}
           {receipt.slippage != null && <Line label="Slippage" value={receipt.slippage} />}
 
+          {/* Treasury Float Yield (#161 P4) — the two swap hops + accrued yield. */}
+          {receipt.yield && (
+            <div className="mt-4 rounded-lg border border-outline-variant bg-surface-container-low p-4">
+              <p className="text-label-mono uppercase tracking-widest font-bold text-primary/70">
+                Treasury Yield ({receipt.yield.asset} · {receipt.yield.status})
+              </p>
+              <div className="mt-2">
+                <Line label="Swept principal" value={receipt.yield.principal} />
+                <Line label="Accrued yield" value={receipt.yield.accrued} />
+                <Line
+                  label={`Platform fee (${receipt.yield.feeBps} bps)`}
+                  value={receipt.yield.platformFee}
+                />
+                <Line label="Net yield to you" value={receipt.yield.netYield} />
+                <Line label="Swap slippage" value={receipt.yield.slippage} />
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 flex items-center justify-between">
             <span className="text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/60">Total Settled</span>
             <span className="font-geist text-headline-md text-primary font-bold">

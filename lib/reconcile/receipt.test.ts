@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
   const legs: any[] = [];
   const receipts = new Map<string, any>();
   const anchorConfigs: any[] = [];
+  const yieldPositions = new Map<string, any>();
   const prisma = {
     payment: {
       findUnique: async ({ where, include }: any) => {
@@ -15,6 +16,7 @@ const h = vi.hoisted(() => {
         const out: any = { ...p };
         if (include?.legs) out.legs = legs.filter((l) => l.paymentId === p.id);
         if (include?.receipt) out.receipt = receipts.get(p.id) ?? null;
+        if (include?.yieldPosition) out.yieldPosition = yieldPositions.get(p.id) ?? null;
         return out;
       },
     },
@@ -32,11 +34,12 @@ const h = vi.hoisted(() => {
       },
     },
   };
-  return { store: { payments, legs, receipts, anchorConfigs }, prisma };
+  return { store: { payments, legs, receipts, anchorConfigs, yieldPositions }, prisma };
 });
 
 vi.mock("../db", () => ({ prisma: h.prisma, forTenant: () => h.prisma }));
 
+import { Prisma } from "../generated/prisma/client";
 import { buildReceipt } from "./receipt";
 
 function seedSettleable() {
@@ -44,6 +47,7 @@ function seedSettleable() {
   h.store.legs.length = 0;
   h.store.receipts.clear();
   h.store.anchorConfigs.length = 0;
+  h.store.yieldPositions.clear();
   h.store.payments.set("p1", {
     id: "p1", tenantId: "t1", intentId: "intent_1",
     sourceAsset: "USDC", sourceAmount: "2500.00",
@@ -98,5 +102,35 @@ describe("buildReceipt", () => {
     await buildReceipt("p1");
     expect(h.store.receipts.size).toBe(1);
     expect(h.store.receipts.get("p1").json.status).toBe("settled");
+  });
+
+  it("has no yield block when the payment has no yield position", async () => {
+    const r = await buildReceipt("p1");
+    expect(r.yield).toBeUndefined();
+    expect(Object.keys(r)).not.toContain("yield");
+  });
+
+  it("adds a yield block derived from the position (#161 P4)", async () => {
+    const D = Prisma.Decimal;
+    h.store.yieldPositions.set("p1", {
+      paymentId: "p1", status: "SWEPT_OUT", yieldAsset: "YLDS",
+      principal: new D("800"), accruedYield: new D("50"),
+      sweptInAmount: new D("799.6"), sweptOutAmount: new D("849.575"),
+      feeBps: new D("25"), sweepInTxHash: "in_tx", sweepOutTxHash: "out_tx",
+    });
+
+    const r = await buildReceipt("p1");
+    expect(r.yield).toEqual({
+      asset: "YLDS",
+      status: "SWEPT_OUT",
+      principal: "800.00",
+      accrued: "50.00000000",
+      platformFee: "0.12500000", // 50 * 25bps
+      netYield: "49.87500000",
+      feeBps: "25",
+      slippage: "0.82500000", // (800-799.6) + (850-849.575)
+      sweepInTx: "in_tx",
+      sweepOutTx: "out_tx",
+    });
   });
 });

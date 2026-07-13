@@ -210,6 +210,105 @@ describe("buildReconciliationStatement", () => {
   });
 });
 
+describe("buildReconciliationStatement — treasury yield (#161 P4)", () => {
+  const YT = "test_tenant_recon_yield_p4";
+  let stmt: ReconciliationStatement;
+
+  beforeAll(async () => {
+    await prisma.tenant.upsert({ where: { id: YT }, update: {}, create: { id: YT, name: "Yield Co" } });
+
+    // Settled fiat payment whose idle balance was swept + unwound (accrued 50).
+    const unwoundId = await payment({
+      tenantId: YT,
+      intent: "recon_yield_unwound",
+      status: "SETTLED",
+      createdAt: IN_RANGE,
+      recipientRef: "Yield Vendor",
+      sourceAmount: "1000",
+      targetCurrency: "PHP",
+      targetAmount: "56700",
+      legs: [
+        { legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_yield_1" },
+        { legType: "FIAT", status: "RECEIVED", bankRef: "BANK-Y-1" },
+      ],
+      receiptJson: {
+        id: "rcpt_yield_1",
+        amounts: { source: { currency: "XLM", value: "1000.00" }, destination: { currency: "PHP", value: "56700.00" } },
+        fx: { rate: "56.70" },
+        yield: { accrued: "50", netYield: "50", status: "SWEPT_OUT" },
+      },
+    });
+    await prisma.yieldPosition.create({
+      data: {
+        tenantId: YT, paymentId: unwoundId, status: "SWEPT_OUT",
+        principal: "1000", accruedYield: "50", sweptInAmount: "999.5", sweptOutAmount: "1049.475",
+      } as never,
+    });
+
+    // Settled payment whose unwind FAILED (served from buffer — still a drift).
+    const failedId = await payment({
+      tenantId: YT,
+      intent: "recon_yield_failed",
+      status: "SETTLED",
+      createdAt: IN_RANGE,
+      recipientRef: "Buffer Vendor",
+      sourceAmount: "800",
+      legs: [
+        { legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_yield_2" },
+        { legType: "FIAT", status: "RECEIVED", bankRef: "BANK-Y-2" },
+      ],
+    });
+    await prisma.yieldPosition.create({
+      data: { tenantId: YT, paymentId: failedId, status: "FAILED", principal: "800" } as never,
+    });
+
+    // Non-settled payment with funds still parked in yield (not yet unwound).
+    const parkedId = await payment({
+      tenantId: YT,
+      intent: "recon_yield_parked",
+      status: "ONCHAIN_CONFIRMED",
+      createdAt: IN_RANGE,
+      recipientRef: "Parked Vendor",
+      sourceAmount: "500",
+      legs: [{ legType: "ONCHAIN", status: "CONFIRMED", txHash: "tx_yield_3" }],
+    });
+    await prisma.yieldPosition.create({
+      data: { tenantId: YT, paymentId: parkedId, status: "SWEPT_IN", principal: "500" } as never,
+    });
+
+    stmt = await buildReconciliationStatement(YT, RANGE, NOW);
+  });
+
+  afterAll(async () => {
+    await prisma.yieldPosition.deleteMany({ where: { tenantId: YT } });
+    await prisma.receipt.deleteMany({ where: { payment: { tenantId: YT } } });
+    await prisma.paymentLeg.deleteMany({ where: { payment: { tenantId: YT } } });
+    await prisma.payment.deleteMany({ where: { tenantId: YT } });
+    await prisma.tenant.deleteMany({ where: { id: YT } });
+  });
+
+  it("surfaces accrued yield on the settled row (from the stored receipt)", () => {
+    const row = stmt.settled.find((r) => r.counterparty === "Yield Vendor")!;
+    expect(row.yieldAccrued).toBe("50");
+  });
+
+  it("totals accrued yield by asset", () => {
+    const xlm = stmt.totals.yieldBySymbol.find((t) => t.currency === "XLM");
+    expect(xlm?.total).toBe("50");
+  });
+
+  it("flags a failed unwind on a settled payment as an exception (served from buffer)", () => {
+    const drift = stmt.exceptions.find((e) => e.counterparty === "Buffer Vendor");
+    expect(drift).toBeDefined();
+    expect(drift!.reason).toContain("Yield unwind failed");
+  });
+
+  it("flags float still parked in a yield position on a non-settled payment", () => {
+    const parked = stmt.exceptions.find((e) => e.counterparty === "Parked Vendor")!;
+    expect(parked.reason).toContain("float still in yield position");
+  });
+});
+
 describe("reconciliationToCsv", () => {
   it("renders a stable, sectioned CSV snapshot", () => {
     const fixture: ReconciliationStatement = {
@@ -232,6 +331,7 @@ describe("reconciliationToCsv", () => {
           txHash: "tx_settled_1",
           bankRef: "BANK-REF-1",
           receiptId: "rcpt_p1",
+          yieldAccrued: "",
         },
       ],
       exceptions: [
@@ -250,12 +350,13 @@ describe("reconciliationToCsv", () => {
         exceptionCount: 1,
         sourceBySymbol: [{ currency: "XLM", total: "100" }],
         destinationByCurrency: [{ currency: "PHP", total: "5670" }],
+        yieldBySymbol: [],
       },
     };
     expect(reconciliationToCsv(fixture)).toMatchInlineSnapshot(`
       "# Settled payments
-      Date,Payment ID,Counterparty,Corridor,Source Asset,Source Amount,Target Currency,Target Amount,FX Rate,Fees,Slippage,On-chain Tx,Bank Ref,Receipt ID
-      2026-07-10T09:00:00.000Z,p1,Acme Vendor,XLM -> PHP,XLM,100.00,PHP,5670.00,56.70,0.00041 XLM; PHP 50.00; platform 0.00,0.0000,tx_settled_1,BANK-REF-1,rcpt_p1
+      Date,Payment ID,Counterparty,Corridor,Source Asset,Source Amount,Target Currency,Target Amount,FX Rate,Fees,Slippage,On-chain Tx,Bank Ref,Receipt ID,Yield Accrued
+      2026-07-10T09:00:00.000Z,p1,Acme Vendor,XLM -> PHP,XLM,100.00,PHP,5670.00,56.70,0.00041 XLM; PHP 50.00; platform 0.00,0.0000,tx_settled_1,BANK-REF-1,rcpt_p1,
 
       # Exceptions
       Date,Payment ID,Counterparty,Corridor,Status,Amount,Reason

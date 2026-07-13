@@ -5,6 +5,32 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P4 receipt & reconciliation integration — #165 (epic #161)
+
+The two swap hops and the accrued yield now **appear** in the Stripe-style receipt
+and tie out in reconciliation — never hidden.
+
+- **Receipt yield block** (`lib/reconcile/receipt.ts`): `buildReceipt` attaches an
+  optional `yield` block when the payment had a `YieldPosition` — asset, status,
+  swept principal, gross accrued, platform fee (`feeBps` × accrued), net-to-tenant,
+  round-trip swap slippage, and both swap tx refs. Every figure is **derived from
+  the stored position** (no re-derivation drift), via the new exported
+  `buildYieldBlock`. Absent when there's no position (existing receipt shape
+  unchanged).
+- **Renderers** (defensive, hidden when absent): `lib/pdf/receipt.ts` adds a yield
+  line group; `components/ReceiptPanel.tsx` shows a "Treasury Yield" card;
+  `lib/ui/types.ts` `Receipt` gains the optional `yield`.
+- **Reconciliation** (`lib/reports/reconciliation.ts`): settled rows carry
+  `yieldAccrued` (read from the stored receipt, position fallback); totals gain
+  `yieldBySymbol`; CSV/PDF get a Yield column + yield totals. New exception
+  reasons — *float still in yield position* (non-settled `SWEPT_IN`) and *yield
+  unwind failed — served from buffer* (a settled payment with a `FAILED` position
+  is surfaced as a drift to reconcile).
+- Tests: receipt yield-block (present/absent + exact derivation), DB-backed
+  reconciliation (accrued surfacing, yield totals, both new exception reasons),
+  updated CSV snapshot. 16 receipt/recon tests green; live-verified `buildReceipt`
+  + PDF against real Postgres.
+
 ## Treasury Float Yield — P3 sweep-out + liquidity-sacred fallback — #164 (epic #161)
 
 At disbursement, the payment's yield position is unwound (YLDS → USDC), the

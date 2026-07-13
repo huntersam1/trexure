@@ -68,6 +68,19 @@ export type Receipt = {
   onchain: { txHash: string; ledger: number; proofHash: string; asset: string };
   fiat: { provider: string; reference: string; bankRef: string };
   privacy: { shielded: boolean; viewKeyDisclosed: boolean };
+  // Treasury Float Yield (#161 P4) — present only when the idle balance was swept.
+  yield?: {
+    asset: string;
+    status: string;
+    principal: string;
+    accrued: string;
+    platformFee: string;
+    netYield: string;
+    feeBps: string;
+    slippage: string;
+    sweepInTx: string;
+    sweepOutTx: string;
+  };
 };
 
 // Returned (as `payload`) by POST /api/payments/:id/decrypt (server-side; view key NEVER included)

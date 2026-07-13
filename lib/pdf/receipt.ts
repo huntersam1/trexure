@@ -54,6 +54,19 @@ export function renderReceiptPdf(receipt: Record<string, unknown>): Promise<Buff
       { label: "Fiat provider", value: String(r.fiat?.provider ?? "") },
       { label: "Fiat reference", value: String(r.fiat?.reference ?? "") },
       { label: "Bank reference", value: String(r.fiat?.bankRef ?? "") },
+      // Treasury Float Yield (#161 P4) — only when the payment earned yield.
+      ...(r.yield
+        ? [
+            { label: "Yield asset", value: `${r.yield.asset ?? ""} (${r.yield.status ?? ""})` },
+            { label: "Yield principal", value: String(r.yield.principal ?? "") },
+            { label: "Yield accrued", value: String(r.yield.accrued ?? "") },
+            { label: "Yield platform fee", value: `${r.yield.platformFee ?? ""} (${r.yield.feeBps ?? "0"} bps)` },
+            { label: "Yield net to tenant", value: String(r.yield.netYield ?? "") },
+            { label: "Yield swap slippage", value: String(r.yield.slippage ?? "") },
+            { label: "Yield sweep-in tx", value: String(r.yield.sweepInTx ?? "") },
+            { label: "Yield sweep-out tx", value: String(r.yield.sweepOutTx ?? "") },
+          ]
+        : []),
       { label: "Shielded", value: String(r.privacy?.shielded ?? "") },
       { label: "View key disclosed", value: String(r.privacy?.viewKeyDisclosed ?? "") },
     ];

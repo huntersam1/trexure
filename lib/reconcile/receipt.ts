@@ -10,6 +10,26 @@ const NETWORK_FEE_XLM = "0.00041";
 // Flat anchor fee fallback when AnchorConfig.config.anchorFeeFlat is absent.
 const DEFAULT_ANCHOR_FEE_FLAT = "50.00";
 
+/**
+ * Treasury Float Yield (#161 P4) — the yield block. Present only when the payment
+ * had a `YieldPosition` (idle balance swept into YLDS between funding and
+ * disbursement). Every figure is derived from the stored position so the receipt
+ * never re-derives / drifts. Readers (PDF, ReceiptPanel, reconciliation) treat it
+ * as optional and hide it when absent.
+ */
+export type YieldReceipt = {
+  asset: string;
+  status: string; // SWEPT_OUT (unwound) | FAILED (served from buffer)
+  principal: string; // source-asset amount swept into yield
+  accrued: string; // gross yield earned over the hold
+  platformFee: string; // feeBps applied to the accrued yield
+  netYield: string; // accrued − platformFee (to the tenant)
+  feeBps: string;
+  slippage: string; // round-trip swap slippage cost
+  sweepInTx: string;
+  sweepOutTx: string;
+};
+
 export type Receipt = {
   id: string;
   paymentId: string;
@@ -26,12 +46,54 @@ export type Receipt = {
   onchain: { txHash: string; ledger: number; proofHash: string; asset: string };
   fiat: { provider: string; reference: string; bankRef: string };
   privacy: { shielded: boolean; viewKeyDisclosed: boolean };
+  yield?: YieldReceipt;
 };
+
+type YieldPositionRow = {
+  status: string;
+  yieldAsset: string;
+  principal: Prisma.Decimal;
+  sweptInAmount: Prisma.Decimal | null;
+  sweptOutAmount: Prisma.Decimal | null;
+  accruedYield: Prisma.Decimal;
+  feeBps: Prisma.Decimal;
+  sweepInTxHash: string | null;
+  sweepOutTxHash: string | null;
+};
+
+/** Derive the receipt yield block from a stored position (no re-derivation drift). */
+export function buildYieldBlock(pos: YieldPositionRow): YieldReceipt {
+  const principal = new D(pos.principal.toString());
+  const accrued = new D(pos.accruedYield.toString());
+  const platformFee = accrued.mul(new D(pos.feeBps.toString())).div(10000);
+  const netYield = accrued.minus(platformFee);
+
+  // Round-trip swap slippage: (principal − YLDS acquired) + (gross − USDC returned).
+  const inSlip = pos.sweptInAmount ? principal.minus(new D(pos.sweptInAmount.toString())) : new D(0);
+  const grossReturn = principal.plus(accrued);
+  const outSlip = pos.sweptOutAmount
+    ? grossReturn.minus(new D(pos.sweptOutAmount.toString()))
+    : new D(0);
+  const slippage = inSlip.plus(outSlip);
+
+  return {
+    asset: pos.yieldAsset,
+    status: pos.status,
+    principal: principal.toFixed(2),
+    accrued: accrued.toFixed(8),
+    platformFee: platformFee.toFixed(8),
+    netYield: netYield.toFixed(8),
+    feeBps: pos.feeBps.toString(),
+    slippage: slippage.toFixed(8),
+    sweepInTx: pos.sweepInTxHash ?? "",
+    sweepOutTx: pos.sweepOutTxHash ?? "",
+  };
+}
 
 export async function buildReceipt(paymentId: string): Promise<Receipt> {
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
-    include: { legs: true, receipt: true },
+    include: { legs: true, receipt: true, yieldPosition: true },
   });
   if (!payment) throw new Error(`buildReceipt: payment ${paymentId} not found`);
 
@@ -82,6 +144,12 @@ export async function buildReceipt(paymentId: string): Promise<Receipt> {
     },
     privacy: { shielded: payment.shielded, viewKeyDisclosed: false },
   };
+
+  // Treasury Float Yield (#161 P4): surface the yield hops when the payment's
+  // idle balance was swept — never hide the two swap legs from the receipt.
+  if (payment.yieldPosition) {
+    json.yield = buildYieldBlock(payment.yieldPosition);
+  }
 
   await prisma.receipt.upsert({
     where: { paymentId: payment.id },

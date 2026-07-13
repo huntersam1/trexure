@@ -34,6 +34,7 @@ export type ReconciliationRow = {
   txHash: string;
   bankRef: string;
   receiptId: string;
+  yieldAccrued: string; // Treasury Float Yield (#161 P4); "" when no yield position
 };
 
 export type ExceptionRow = {
@@ -53,6 +54,7 @@ export type ReconciliationTotals = {
   exceptionCount: number;
   sourceBySymbol: CurrencyTotal[];
   destinationByCurrency: CurrencyTotal[];
+  yieldBySymbol: CurrencyTotal[]; // accrued yield across settled rows (#161 P4)
 };
 
 export type ReconciliationStatement = {
@@ -75,9 +77,12 @@ type ReceiptJson = {
   slippage?: string;
   onchain?: { txHash?: string };
   fiat?: { bankRef?: string };
+  yield?: { accrued?: string; netYield?: string; status?: string };
 };
 
-type PaymentWithRelations = Prisma.PaymentGetPayload<{ include: { legs: true; receipt: true } }>;
+type PaymentWithRelations = Prisma.PaymentGetPayload<{
+  include: { legs: true; receipt: true; yieldPosition: true };
+}>;
 
 function feesSummary(r: ReceiptJson): string {
   const f = r.fees;
@@ -123,7 +128,19 @@ function exceptionReason(p: PaymentWithRelations): string {
   ) {
     reason += " (on-chain leg without fiat leg)";
   }
+  // Treasury Float Yield (#161 P4): flag idle balance still parked in yield.
+  if (p.yieldPosition?.status === "SWEPT_IN") {
+    reason += " (float still in yield position — not yet unwound)";
+  }
   return reason;
+}
+
+/** The yield-drift reason for a payment whose position failed to unwind, or null. */
+function yieldExceptionReason(p: PaymentWithRelations): string | null {
+  if (p.yieldPosition?.status === "FAILED") {
+    return "Yield unwind failed — disbursement served from liquid buffer (position needs reconcile)";
+  }
+  return null;
 }
 
 function toSettledRow(p: PaymentWithRelations): ReconciliationRow {
@@ -150,6 +167,8 @@ function toSettledRow(p: PaymentWithRelations): ReconciliationRow {
     txHash: r.onchain?.txHash ?? onchainLeg?.txHash ?? "",
     bankRef: r.fiat?.bankRef ?? fiatLeg?.bankRef ?? "",
     receiptId: r.id ?? (p.receipt ? `rcpt_${p.id}` : ""),
+    // Prefer the stored receipt's yield figure (no drift); fall back to the position.
+    yieldAccrued: r.yield?.accrued ?? p.yieldPosition?.accruedYield?.toString() ?? "",
   };
 }
 
@@ -178,7 +197,7 @@ export async function buildReconciliationStatement(
   const db = forTenant(tenantId);
   const payments = (await db.payment.findMany({
     where: { createdAt: { gte: range.from, lte: range.to } },
-    include: { legs: true, receipt: true },
+    include: { legs: true, receipt: true, yieldPosition: true },
     orderBy: { createdAt: "asc" },
   })) as PaymentWithRelations[];
 
@@ -196,6 +215,24 @@ export async function buildReconciliationStatement(
     reason: exceptionReason(p),
   }));
 
+  // Treasury Float Yield (#161 P4): a settled payment whose yield unwind FAILED is
+  // still a drift finance must reconcile (funds served from the buffer, position
+  // stuck) — surface it even though the payment itself settled.
+  for (const p of settledPayments) {
+    const yieldReason = yieldExceptionReason(p);
+    if (yieldReason) {
+      exceptions.push({
+        paymentId: p.id,
+        date: p.createdAt.toISOString(),
+        counterparty: p.recipientRef,
+        corridor: `${p.corridorFrom} -> ${p.corridorTo}`,
+        status: p.status,
+        amount: `${p.yieldPosition?.principal.toString() ?? p.sourceAmount.toString()} ${p.sourceAsset}`,
+        reason: yieldReason,
+      });
+    }
+  }
+
   const totals: ReconciliationTotals = {
     settledCount: settled.length,
     exceptionCount: exceptions.length,
@@ -204,6 +241,11 @@ export async function buildReconciliationStatement(
     ),
     destinationByCurrency: sumByCurrency(
       settled.map((r) => ({ currency: r.targetCurrency, value: r.targetAmount })),
+    ),
+    yieldBySymbol: sumByCurrency(
+      settled
+        .filter((r) => r.yieldAccrued)
+        .map((r) => ({ currency: r.sourceAsset, value: r.yieldAccrued })),
     ),
   };
 
@@ -234,6 +276,7 @@ const SETTLED_COLUMNS: CsvColumn<ReconciliationRow>[] = [
   { header: "On-chain Tx", value: (r) => r.txHash },
   { header: "Bank Ref", value: (r) => r.bankRef },
   { header: "Receipt ID", value: (r) => r.receiptId },
+  { header: "Yield Accrued", value: (r) => r.yieldAccrued },
 ];
 
 const EXCEPTION_COLUMNS: CsvColumn<ExceptionRow>[] = [
@@ -257,6 +300,7 @@ export function reconciliationToCsv(stmt: ReconciliationStatement): string {
     ...stmt.totals.destinationByCurrency.map((t) =>
       csvRow([`Settled total (${t.currency})`, t.total]),
     ),
+    ...stmt.totals.yieldBySymbol.map((t) => csvRow([`Yield accrued (${t.currency})`, t.total])),
   ].join("\r\n");
 
   return joinCsvBlocks([settledBlock, exceptionsBlock, totalsRows]);
@@ -273,6 +317,7 @@ export function reconciliationToReportDoc(stmt: ReconciliationStatement): Report
       label: `Settled total ${t.currency}`,
       value: t.total,
     })),
+    ...stmt.totals.yieldBySymbol.map((t) => ({ label: `Yield accrued ${t.currency}`, value: t.total })),
   ];
 
   return {
@@ -282,7 +327,7 @@ export function reconciliationToReportDoc(stmt: ReconciliationStatement): Report
     tables: [
       {
         heading: "Settled payments",
-        columns: ["Date", "Counterparty", "Corridor", "Source", "Target", "FX", "On-chain Tx", "Bank Ref"],
+        columns: ["Date", "Counterparty", "Corridor", "Source", "Target", "FX", "Yield", "On-chain Tx", "Bank Ref"],
         rows: stmt.settled.map((r) => [
           r.date.slice(0, 10),
           r.counterparty,
@@ -290,6 +335,7 @@ export function reconciliationToReportDoc(stmt: ReconciliationStatement): Report
           `${r.sourceAmount} ${r.sourceAsset}`,
           r.targetAmount ? `${r.targetAmount} ${r.targetCurrency}` : "",
           r.fxRate,
+          r.yieldAccrued,
           r.txHash,
           r.bankRef,
         ]),
