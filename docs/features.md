@@ -5,6 +5,29 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P1 schema & config foundation — #162 (epic #161)
+
+The additive, offline foundation for routing idle tenant balances into a
+yield-bearing asset (YLDS) between funding and disbursement. No sweeps yet —
+this phase is data model, per-tenant config, feature flag, and state-machine
+states that unblock P2–P6.
+
+- **`PaymentStatus`** gains `SWEPT_IN` / `SWEPT_OUT` (funds in yield / unwound
+  back to liquid). Additive — existing fiat/pool flows never enter them and no
+  transition logic changed.
+- **`YieldConfig`** (per-tenant, `@@unique tenantId`): `enabled`, `yieldAsset`
+  (default `YLDS`), `minIdleBuffer`, `sweepThreshold` (`Decimal(38,8)`), and a
+  platform management fee `feeBps` (`Decimal(5,2)`, default 0 → 100% of yield to
+  the tenant). Registered in `DIRECT_TENANT_MODELS`.
+- **`YieldPosition`** (per-payment, `@@unique paymentId`) with `YieldStatus`
+  (`PENDING → SWEPT_IN → SWEPT_OUT → UNWOUND`, or `FAILED` when served from the
+  liquid buffer). All swap columns nullable — written in P2/P3.
+- **`ENABLE_YIELD`** flag (default off) + `YIELD_ASSET_CODE` in `lib/env.ts` /
+  `.env.example`; `lib/yield/config.ts` (`loadYieldConfig` / `saveYieldConfig`,
+  money-as-string, 422 on bad amounts/bps).
+- Migration `add_treasury_yield_foundation` (purely additive). Tenant-isolation
+  cases for both models + a DB-backed config round-trip test.
+
 ## Security: per-tenant webhook secret (H1) — #143
 
 A High finding. Both webhook handlers verified with one process-wide token, and

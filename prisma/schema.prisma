@@ -23,6 +23,12 @@ enum PayoutMethod {
 enum PaymentStatus {
   DRAFT
   PENDING
+  // Treasury Float Yield (#161 P1). Idle funds swept into the yield asset after
+  // funding (SWEPT_IN) and unwound back to liquid at disbursement (SWEPT_OUT).
+  // Additive: existing fiat/pool flows never enter these; no transition logic
+  // changes in P1 (wired in P2/P3).
+  SWEPT_IN
+  SWEPT_OUT
   ONCHAIN_CONFIRMED
   RECONCILING
   SETTLED
@@ -79,6 +85,18 @@ enum AdvanceStatus {
   REJECTED
 }
 
+// Treasury Float Yield (#161 P1). Lifecycle of a per-payment yield position.
+// PENDING before sweep; SWEPT_IN while funds sit in the yield asset; SWEPT_OUT
+// once unwound to liquid; UNWOUND when fully settled; FAILED when an unwind was
+// served from the liquid buffer instead (liquidity-sacred fallback, P3).
+enum YieldStatus {
+  PENDING
+  SWEPT_IN
+  SWEPT_OUT
+  UNWOUND
+  FAILED
+}
+
 model Tenant {
   id             String         @id @default(cuid())
   name           String
@@ -88,6 +106,8 @@ model Tenant {
   viewKey        ViewKey?
   apiKeys        ApiKey[]
   anchors        AnchorConfig[]
+  yieldConfig    YieldConfig?
+  yieldPositions YieldPosition[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -215,6 +235,9 @@ model Payment {
   notifications     Notification[]
   claimLink         ClaimLink?
   disclosureLink    DisclosureLink?
+  // Treasury Float Yield (#161 P1). Optional per-payment yield position;
+  // populated only when the tenant has yield enabled and an intent sweeps.
+  yieldPosition     YieldPosition?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -547,4 +570,54 @@ model SalaryAdvance {
 
   @@index([tenantId])
   @@index([employeeId, status])
+}
+
+// Treasury Float Yield (#161 P1) — per-tenant opt-in yield configuration.
+// One row per tenant (@@unique tenantId); absent row = yield disabled with the
+// safe defaults. Money amounts Decimal(38,8); management fee in basis points
+// Decimal(5,2), default 0 (100% of yield to the tenant). All swap wiring lands
+// in P2/P3 — this model is config only.
+model YieldConfig {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  enabled        Boolean  @default(false)
+  yieldAsset     String   @default("YLDS") // yield-bearing asset code
+  minIdleBuffer  Decimal  @default(0) @db.Decimal(38, 8) // kept liquid, never swept
+  sweepThreshold Decimal  @default(0) @db.Decimal(38, 8) // min eligible amount to bother sweeping
+  // Platform management fee in basis points (0–10000). Decimal(7,2) fits the full
+  // bps range (10000 = 100%) — a Decimal(5,2) would silently overflow ≥1000 bps.
+  feeBps         Decimal  @default(0) @db.Decimal(7, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Treasury Float Yield (#161 P1) — per-payment yield bookkeeping. One optional
+// position per Payment (@@unique paymentId). Sweep-in fields are written in P2,
+// sweep-out + accrual in P3; all are nullable here so the foundation is purely
+// additive and existing payments are untouched.
+model YieldPosition {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  paymentId      String      @unique
+  payment        Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status         YieldStatus @default(PENDING)
+  yieldAsset     String      @default("YLDS")
+  // Principal (source asset) earmarked for yield, and the yield-asset units held.
+  principal      Decimal     @db.Decimal(38, 8)
+  sweptInAmount  Decimal?    @db.Decimal(38, 8) // yield-asset units acquired
+  sweptOutAmount Decimal?    @db.Decimal(38, 8) // source-asset units returned at unwind
+  accruedYield   Decimal     @default(0) @db.Decimal(38, 8)
+  feeBps         Decimal     @default(0) @db.Decimal(7, 2) // fee snapshot at sweep time (bps, 0–10000)
+  feeAmount      Decimal     @default(0) @db.Decimal(38, 8)
+  // On-chain refs for the two swap hops (nullable until the hop runs).
+  sweepInTxHash  String?
+  sweepInLedger  Int?
+  sweepOutTxHash String?
+  sweepOutLedger Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([tenantId, status])
 }

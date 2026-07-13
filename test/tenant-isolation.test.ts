@@ -39,6 +39,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.yieldConfig.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
+  await prisma.yieldPosition.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
   await prisma.paymentBatch.deleteMany({ where: { tenantId: { in: [TENANT_A, TENANT_B] } } });
   await prisma.payment.deleteMany({ where: { intentId: { in: [INTENT_A, INTENT_B] } } });
   await prisma.user.deleteMany({ where: { id: { in: ["user_" + TENANT_A, "user_" + TENANT_B] } } });
@@ -97,5 +99,42 @@ describe("forTenant tenant isolation", () => {
     // Tenant A sees only its own batches.
     const aRows = await forTenant(TENANT_A).paymentBatch.findMany();
     expect(aRows.every((b) => b.tenantId === TENANT_A)).toBe(true);
+  });
+
+  it("YieldConfig is tenant-scoped: create forces tenantId and reads isolate (#161 P1)", async () => {
+    const created = await forTenant(TENANT_A).yieldConfig.create({
+      data: {
+        // Smuggled TENANT_B must be overridden to TENANT_A.
+        tenantId: TENANT_B,
+        enabled: true,
+        minIdleBuffer: "50.00000000",
+      } as never,
+    });
+    expect(created.tenantId).toBe(TENANT_A);
+
+    const leaked = await forTenant(TENANT_B).yieldConfig.findUnique({ where: { id: created.id } });
+    expect(leaked).toBeNull();
+
+    const aRows = await forTenant(TENANT_A).yieldConfig.findMany();
+    expect(aRows.every((c) => c.tenantId === TENANT_A)).toBe(true);
+  });
+
+  it("YieldPosition is tenant-scoped: create forces tenantId and reads isolate (#161 P1)", async () => {
+    const paymentA = await prisma.payment.findUniqueOrThrow({ where: { intentId: INTENT_A } });
+    const created = await forTenant(TENANT_A).yieldPosition.create({
+      data: {
+        // Smuggled TENANT_B must be overridden to TENANT_A.
+        tenantId: TENANT_B,
+        paymentId: paymentA.id,
+        principal: "100.00000000",
+      } as never,
+    });
+    expect(created.tenantId).toBe(TENANT_A);
+
+    const leaked = await forTenant(TENANT_B).yieldPosition.findUnique({ where: { id: created.id } });
+    expect(leaked).toBeNull();
+
+    const aRows = await forTenant(TENANT_A).yieldPosition.findMany();
+    expect(aRows.every((p) => p.tenantId === TENANT_A)).toBe(true);
   });
 });

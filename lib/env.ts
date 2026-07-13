@@ -80,6 +80,14 @@ const EnvSchema = z.object({
   // recorded in zk/pool-deploy.json; override per environment.
   POOL_CONTRACT_ID: z.string().min(1).default("CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM"),
 
+  // Treasury Float Yield (#161). Master gate for the yield feature — idle tenant
+  // balance swept into a yield-bearing asset between funding and disbursement.
+  // Defaults OFF; when off nothing sweeps and no yield surfaces (P1 foundation).
+  ENABLE_YIELD: boolFromString.default(false),
+  // Yield-bearing asset code (Figure's YLDS on Stellar). Per-tenant YieldConfig
+  // may override; this is the platform default.
+  YIELD_ASSET_CODE: z.string().min(1).default("YLDS"),
+
   S3_ENDPOINT: z.string().url(),
   S3_REGION: z.string().min(1),
   S3_ACCESS_KEY_ID: z.string().min(1),
