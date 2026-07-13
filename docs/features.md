@@ -5,6 +5,30 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P2 sweep-in engine — #163 (epic #161)
+
+When a yield-enabled tenant funds a payment intent, the eligible idle balance is
+swept into the yield asset and the payment advances to `SWEPT_IN`. Flag-gated
+(`ENABLE_YIELD`, default off) so it's a pure no-op for everyone else.
+
+- **`lib/yield/eligibility.ts`** — `computeSweepAmount`: keeps `minIdleBuffer`
+  liquid, only sweeps the remainder once it clears `sweepThreshold` (pure Decimal
+  math, no floats).
+- **`lib/yield/swap.ts`** — `simulateSwap`: a **simulated** USDC↔YLDS swap
+  (maintainer decision on #163) — deterministic 1:1 peg minus a small demo-grade
+  slippage (5 bps), stable pseudo tx-hash/ledger from the seed. No network, no
+  funds move; a real testnet DEX path payment can replace this module later
+  without touching the engine.
+- **`lib/yield/sweep.ts`** — `sweepIn(tenantId, paymentId)`: records a
+  `YieldPosition` (`SWEPT_IN`, principal + acquired amount + fee snapshot + swap
+  refs) and transitions the payment `PENDING → SWEPT_IN` in one `$transaction`.
+  Idempotent (unique-constraint race → treated as done); flag/config gated.
+- **Wiring**: `createPayment` calls `sweepIn` after funding, **best-effort** — a
+  sweep failure never fails the payment (funds stay liquid). Off by default.
+- Tests: eligibility (buffer/threshold branches), swap (determinism/slippage),
+  DB-backed sweep (flag-off no-op, config-off no-op, sweep+transition,
+  below-threshold, idempotency). 23 green.
+
 ## Treasury Float Yield — P1 schema & config foundation — #162 (epic #161)
 
 The additive, offline foundation for routing idle tenant balances into a

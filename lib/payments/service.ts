@@ -9,7 +9,9 @@ import { QUEUE, watchOnchainQueue, reconcileQueue } from "../queue";
 import { corridorFor, type CreatePaymentInput, type ListPaymentsQuery } from "../validation/payments";
 import { AppError } from "../http/problem";
 import { quoteTargetAmount } from "../fx";
+import { env } from "../env";
 import { logger } from "../log";
+import { sweepIn } from "../yield/sweep";
 import type { Prisma } from "../generated/prisma/client";
 
 export type PaymentListItem = {
@@ -122,8 +124,21 @@ export async function createPayment(
   // 4. Enqueue watch-onchain for the worker (Phase 5 consumes it).
   await watchOnchainQueue.add(QUEUE.WATCH_ONCHAIN, { paymentId: payment.id });
 
-  logger.info({ paymentId: payment.id, intentId }, "payment created (PENDING)");
-  return { id: payment.id, intentId, status: payment.status };
+  // 5. Treasury Float Yield (#161 P2): sweep the eligible idle balance into the
+  //    yield asset. Flag-gated (default off → pure no-op) and best-effort — a
+  //    sweep failure must NEVER fail the payment; the funds simply stay liquid.
+  let status = payment.status;
+  if (env.ENABLE_YIELD) {
+    try {
+      const sweep = await sweepIn(tenantId, payment.id);
+      if (sweep.swept) status = "SWEPT_IN";
+    } catch (err) {
+      logger.error({ paymentId: payment.id, err }, "yield sweep-in failed; payment stays liquid");
+    }
+  }
+
+  logger.info({ paymentId: payment.id, intentId, status }, "payment created");
+  return { id: payment.id, intentId, status };
 }
 
 /** Tenant-scoped, cursor-paginated payment list with optional status/corridor filters. */
