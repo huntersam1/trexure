@@ -10,7 +10,7 @@
 
 | | |
 |---|---|
-| Links | 🌐 **[trexure.xyz](https://trexure.xyz/)** (website) · 🚀 [app.trexure.xyz](https://app.trexure.xyz) (live testnet app) |
+| Links | 🌐 **[trexure.xyz](https://trexure.xyz/)** (website) · 🚀 [app.trexure.xyz](https://app.trexure.xyz) (live testnet app) · 🎬 [Demo video](https://drive.google.com/drive/folders/14bjDpA4Ltuin849EBFDB3cF4etObQxZQ?usp=sharing) · 📑 [Pitch deck](https://drive.google.com/drive/folders/1LE1EchhAVyl4ReW26Xn6XwrQAZJswInG?usp=sharing) |
 | Stage | **Live on Stellar testnet** — real Groth16 on-chain verification + real `shielded_transfer` txs; full reconciliation → receipt spine; self-serve signup. Fiat anchor is a Mock Anchor (drop-in for a real SEP anchor); on-chain leg is a commitment recorder (not yet value-moving). See [Current state](#current-state). |
 | License | MIT |
 
@@ -67,7 +67,7 @@ Trexure's aim is a Stellar-native, ZK-private, auto-reconciling treasury layer t
 One Railway project runs two Node services — a Next.js **web** app and a standalone BullMQ **worker** — over a shared PostgreSQL 17 and Redis. A single privacy-shielded payment can settle down **either of two payout rails**:
 
 - **Rail B — private fiat payout (live).** The on-chain leg is a ZK commitment; a real off-ramp **anchor / VASP** (in the PH: **PDAX**; Mock Anchor in the demo) pays the recipient's **bank account**, and the worker reconciles the on-chain leg against the off-ramp payout by `intentId` → `SETTLED` + receipt.
-- **Rail A — private on-chain transfer (in build, [#59](https://github.com/webnxt-2030/trexure/issues/59)).** Real XLM moves through a Soroban `ShieldedPool` to **any recipient wallet**, with the sender↔recipient link hidden in zero-knowledge. There's no fiat leg to match here — the withdrawal tx *is* the settlement.
+- **Rail A — private on-chain transfer (in build).** Real XLM moves through a Soroban `ShieldedPool` to **any recipient wallet**, with the sender↔recipient link hidden in zero-knowledge. There's no fiat leg to match here — the withdrawal tx *is* the settlement.
 
 See [`docs/payment-rails.md`](docs/payment-rails.md) for how reconciliation differs across the two rails and the honest privacy/KYC model of each.
 
@@ -91,7 +91,7 @@ flowchart TB
     subgraph Chain["Stellar / Soroban testnet"]
         RPC[Soroban RPC + Horizon]
         VC["groth16-verifier + shielded_transfer<br/>(Rust/Soroban contract)"]
-        POOL["ShieldedPool contract<br/>#59 · in build"]
+        POOL["ShieldedPool contract<br/>in build"]
     end
     ANCHOR["Off-ramp anchor / VASP<br/>Mock Anchor today · PDAX (PH) planned"]
     WALLET[(Recipient XLM wallet)]
@@ -112,12 +112,12 @@ flowchart TB
     ANCHOR ==>|off-ramp payout| BANK
     REC ==>|match on-chain leg + fiat leg by intentId<br/>→ SETTLED + Receipt| PG
 
-    %% Rail A — private on-chain transfer (#59, IN BUILD)
+    %% Rail A — private on-chain transfer (IN BUILD)
     LIB -.->|deposit / withdraw + ZK proof| POOL
     POOL -.->|pays real XLM · sender↔recipient unlinkable| WALLET
 ```
 
-**Legend:** thick edges (`==>`) = **Rail B — private fiat payout** (live; Mock Anchor today, PDAX planned). Dashed edges (`-.->`) = **Rail A — private on-chain transfer** (in build, [#59](https://github.com/webnxt-2030/trexure/issues/59)).
+**Legend:** thick edges (`==>`) = **Rail B — private fiat payout** (live; Mock Anchor today, PDAX planned). Dashed edges (`-.->`) = **Rail A — private on-chain transfer** (in build).
 
 <details><summary>Rendered architecture diagram (image — Rail B / fiat-payout view)</summary>
 
@@ -280,7 +280,7 @@ privacy puzzle, which is why they're complementary rather than competing:
 | Dimension | Trexure (today) | Stellar Confidential Tokens |
 |---|---|---|
 | **Hides the amount** | ✅ off-chain (encrypted payload + view key); on-chain only a commitment | ✅ on-chain (encrypted SEP-41 balances/transfer amounts) |
-| **Hides sender ↔ recipient link** | ✅ Rail A shielded pool (in build, [#59](https://github.com/webnxt-2030/trexure/issues/59)) | ❌ addresses stay visible |
+| **Hides sender ↔ recipient link** | ✅ Rail A shielded pool (in build) | ❌ addresses stay visible |
 | **On-chain value movement** | 🟡 not yet — `shielded_transfer` records a commitment; Rail B settles the value via fiat off-ramp | ✅ real confidential token transfer |
 | **Selective disclosure** | ✅ per-tenant view key, server-side, audit-logged | 🟡 auditor/decryption keys per the token design |
 | **Fiat reconciliation → receipt** | ✅ core product — matches on-chain + fiat legs into a Stripe-style receipt | ❌ out of scope (settlement primitive only) |
@@ -291,9 +291,9 @@ The strongest end state is to **build Trexure's shielded pool *over* a confident
 token** — hiding *who* **and** *how much* on-chain by reusing the audited
 OpenZeppelin/Nethermind verifier instead of hand-rolling MiMC + Groth16 — while keeping
 Trexure's reconciliation, view-key disclosure, and receipt layer on top. That
-build-vs-reuse decision is tracked in [#52](https://github.com/webnxt-2030/trexure/issues/52).
+build-vs-reuse decision is part of the on-chain roadmap below.
 
-**Roadmap for the on-chain layer:** the natural next step is to move real private *value*, not just anchor a commitment. As of June 2026 Stellar shipped **Confidential Tokens** (private SEP-41 balances/transfer amounts, via an OpenZeppelin contract suite + Nethermind verifier) and **Privacy Pools** — both aimed squarely at payroll/treasury. Migrating `shielded_transfer` onto those primitives replaces the bespoke recorder with real, compliant private value transfer while keeping the same selective-disclosure model. See [issue #52](https://github.com/webnxt-2030/trexure/issues/52) for the full integration plan (and [#59](https://github.com/webnxt-2030/trexure/issues/59) for the shielded-pool epic).
+**Roadmap for the on-chain layer:** the natural next step is to move real private *value*, not just anchor a commitment. As of June 2026 Stellar shipped **Confidential Tokens** (private SEP-41 balances/transfer amounts, via an OpenZeppelin contract suite + Nethermind verifier) and **Privacy Pools** — both aimed squarely at payroll/treasury. Migrating `shielded_transfer` onto those primitives replaces the bespoke recorder with real, compliant private value transfer while keeping the same selective-disclosure model.
 
 ### Live on Stellar testnet
 
@@ -305,8 +305,8 @@ address to browse it on [stellar.expert](https://stellar.expert).
 
 | Contract | Address | Rail / role | Entrypoints | Status |
 |---|---|---|---|---|
-| **Verifier / `shielded_transfer`** (#31) | [`CBCYXVZC…VTSG`](https://stellar.expert/explorer/testnet/contract/CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG) | Reconciliation rail — on-chain Groth16 (BLS12-381) proof verification + commitment recorder | `verify`, `shielded_transfer` | 🟢 Active — every shielded payment records its commitment here |
-| **ShieldedPool** (#64, redeployed #74) | [`CCQRSDCM…JONM`](https://stellar.expert/explorer/testnet/contract/CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM) | Shielded pool rail — Tornado-style depth-4 Merkle tree (16-leaf anonymity set) + nullifier set, in-contract Groth16, custodies native XLM | `initialize`, `deposit`, `withdraw`, `get_root`, `is_spent` | 🟢 Active when `ENABLE_POOL_RAIL=true` (app default `POOL_CONTRACT_ID`) |
+| **Verifier / `shielded_transfer`** | [`CBCYXVZC…VTSG`](https://stellar.expert/explorer/testnet/contract/CBCYXVZCNMQEHLN6NN375KUK2IK54PF3XUB6FMZG2J26K7A4WH2ZVTSG) | Reconciliation rail — on-chain Groth16 (BLS12-381) proof verification + commitment recorder | `verify`, `shielded_transfer` | 🟢 Active — every shielded payment records its commitment here |
+| **ShieldedPool** (redeployed) | [`CCQRSDCM…JONM`](https://stellar.expert/explorer/testnet/contract/CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM) | Shielded pool rail — Tornado-style depth-4 Merkle tree (16-leaf anonymity set) + nullifier set, in-contract Groth16, custodies native XLM | `initialize`, `deposit`, `withdraw`, `get_root`, `is_spent` | 🟢 Active when `ENABLE_POOL_RAIL=true` (app default `POOL_CONTRACT_ID`) |
 | **Native XLM SAC** | [`CDLZFC3S…CYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) | Stellar Asset Contract for native XLM — the token the ShieldedPool deposits/withdraws | SEP-41 token interface | 🟢 Standard SAC (`tokenSac` in `zk/pool-deploy.json`) |
 | **ShieldedPool (original)** | [`CB5FU3DB…LZT4`](https://stellar.expert/explorer/testnet/contract/CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4) | First depth-4 pool deploy | `initialize`, `deposit`, `withdraw`, `get_root`, `is_spent` | ⚪ Superseded — filled to 16/16 leaves (`TreeFull`, Error #3); replaced by `CCQRSDCM…` on 2026-07-08 |
 
@@ -317,8 +317,8 @@ deploy tx [`cbe1aada…`](https://stellar.expert/explorer/testnet/tx/cbe1aada7c7
 init tx [`94b0aeaa…`](https://stellar.expert/explorer/testnet/tx/94b0aeaa753f164721e91b33911e94d727c438edd53a85e1cab6326166ce301f)).
 
 > **Which pool address is live?** The running app resolves the pool from `env.POOL_CONTRACT_ID`
-> (default `CCQRSDCM…JONM`), matching `zk/pool-deploy.json`. Some demo docs and `.env.example`
-> still reference the superseded `CB5FU3DB…` pool — prefer the deploy-JSON / env value.
+> (default [`CCQRSDCM…JONM`](https://stellar.expert/explorer/testnet/contract/CCQRSDCM7D6WQE6LJNHH5ACZ5IQRI3BTLYCLOL3UBBVEZBRMKJUPJONM)), matching `zk/pool-deploy.json`. Some demo docs and `.env.example`
+> still reference the superseded [`CB5FU3DB…`](https://stellar.expert/explorer/testnet/contract/CB5FU3DBINAZXGT3KG3BIHXWA4SKN6VQUTJSBRBN4VHQBV2IIE7RLZT4) pool — prefer the deploy-JSON / env value.
 > All contracts are **demo-grade** (trusted setup, testnet only).
 
 - **Verifier deployment tx:** [`2ede3274…eeffd`](https://stellar.expert/explorer/testnet/tx/2ede3274ee67438f37eab547671d9b5e639fc4a0655298cd375e1834cdaaeffd)
@@ -345,7 +345,7 @@ An honest snapshot of what is real, what is mocked, and what is next. The reconc
 | New-payment on-chain submission (`shielded_transfer`) | ✅ **Real testnet tx**, but a *commitment recorder* — no value movement, no notes/nullifiers |
 | Fiat anchor | 🟡 **Mock Anchor only** — fires the *same* HMAC-signed webhook a real anchor would; a real SEP-24/SEP-31 anchor (or Xendit) is a drop-in via `ANCHOR_PROVIDER` |
 | Network | 🟡 **Testnet only** (enforced by the `STELLAR_NETWORK` schema) |
-| Privacy pool / value-moving confidential transfer | 🔭 **Roadmap** — migrate to Stellar Confidential Tokens / Privacy Pools ([#52](https://github.com/webnxt-2030/trexure/issues/52)) |
+| Privacy pool / value-moving confidential transfer | 🔭 **Roadmap** — migrate to Stellar Confidential Tokens / Privacy Pools |
 
 Feature flags & defaults: `ENABLE_NEW_PAYMENTS=true`, `ZK_PROVING=live`, `SEED_ONCHAIN=false` (set `true` + a funded key to make the seeded/signup sample payment a real testnet tx), `ANCHOR_PROVIDER=mock-anchor`, `ENABLE_MOCK_ANCHOR=true` (set `false` in production). Test suite: **233 tests** across 61 files (`pnpm run ci`).
 
