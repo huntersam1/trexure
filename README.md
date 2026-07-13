@@ -10,6 +10,7 @@
 
 | | |
 |---|---|
+| Links | 🌐 **[trexure.xyz](https://trexure.xyz/)** (website) · 🚀 [app.trexure.xyz](https://app.trexure.xyz) (live testnet app) |
 | Stage | **Live on Stellar testnet** — real Groth16 on-chain verification + real `shielded_transfer` txs; full reconciliation → receipt spine; self-serve signup. Fiat anchor is a Mock Anchor (drop-in for a real SEP anchor); on-chain leg is a commitment recorder (not yet value-moving). See [Current state](#current-state). |
 | License | MIT |
 
@@ -386,8 +387,8 @@ Receivers are a **separate persona** with their own session — a tenant login g
 nothing on `/claim`, and vice-versa. Passwords are argon2id-hashed in the DB;
 override the member/receiver ones via `SEED_MEMBER_PASSWORD` / `SEED_<NAME>_PASSWORD`
 if desired. See [`docs/demo/demo-credentials.md`](docs/demo/demo-credentials.md) for
-the full demo dataset. A live staging demo runs at
-**https://app.trexure.xyz** (log in with the accounts above).
+the full demo dataset. The marketing site is at **https://trexure.xyz/**, and a
+live staging demo runs at **https://app.trexure.xyz** (log in with the accounts above).
 
 ## Documentation
 
