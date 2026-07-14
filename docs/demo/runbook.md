@@ -64,6 +64,23 @@ payout steps settle on testnet).
 - **Non-monetary → cash:** convert part of the benefit, **approve & pay** — the
   balance decrements and the conversion shows **disbursed** with a linked payment.
 
+## Act 4 — Treasury Float Yield (#161)
+
+Pre-recorded walkthrough: [`trexure-yield.mp4`](trexure-yield.mp4) — one
+continuous admin flow, ~23s. Re-record with `pnpm demo:record:yield` (seeds a
+demo scenario, then records; needs `ENABLE_YIELD=true pnpm dev`).
+
+- **Treasury Yield dashboard** (`/yield`): idle balance between funding and
+  disbursement is swept into **YLDS** and unwound at payout — the float **earns**
+  instead of sitting idle. KPIs: **in-yield balance**, **accrued yield**, and the
+  **effective APY**; plus active / unwound / buffer-fallback counts and net-to-you.
+- **Enable + configure** yield (min idle buffer kept liquid, sweep threshold,
+  platform fee in bps) — a real, persisted, ADMIN-gated settings action.
+- **Yield Attribution report** (`/reports/yield`): the per-position split —
+  principal swept, yield accrued, platform management fee, and **net attributed to
+  the tenant** — with CSV/PDF export for accounting. Liquidity is sacred: a failed
+  unwind falls back to the liquid buffer (surfaced as a reconciliation exception).
+
 ## Beat → feature map (SPEC §14.6)
 | Beat | Backed by |
 |---|---|

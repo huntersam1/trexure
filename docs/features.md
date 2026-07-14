@@ -5,6 +5,22 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — demo video
+
+A Playwright screen-recording of the Treasury Float Yield feature, mirroring the
+other `demo:record:*` recorders.
+
+- `scripts/seed-yield-demo.mts` — seeds a deterministic demo scenario for the HQ
+  tenant (yield enabled, 2 positions in yield + 2 unwound with accrued yield + fee;
+  in-yield 6500, accrued 60, fee 0.15). Idempotent.
+- `scripts/record-yield.mjs` + `pnpm demo:record:yield` — records the walkthrough
+  to `docs/demo/trexure-yield.mp4` (~23s, 1080p): login → Treasury Yield dashboard
+  (in-yield balance · accrued yield · effective APY) → enable + configure yield
+  (real persisted settings action) → Reports → Yield Attribution report
+  (per-position principal / accrued / fee / net + CSV/PDF export). Needs
+  `ENABLE_YIELD=true pnpm dev`.
+- README + `docs/demo/runbook.md` (new "Act 4 — Treasury Float Yield") link it.
+
 ## Treasury Float Yield — P6 attribution + platform fee + E2E — #167 (epic #161, COMPLETE)
 
 The finale: platform-fee accounting, a per-tenant yield attribution report, and an
