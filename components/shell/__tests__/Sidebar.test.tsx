@@ -42,6 +42,21 @@ describe("Sidebar", () => {
     expect(screen.queryByText("Reports")).toBeNull();
   });
 
+  it("shows the ADMIN-only Treasury Yield link to /yield when yield is enabled (#166)", () => {
+    render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled yieldEnabled />);
+    expect(screen.getByText("Treasury Yield").closest("a")?.getAttribute("href")).toBe("/yield");
+  });
+
+  it("hides Treasury Yield when the flag is off (default) (#166)", () => {
+    render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled />);
+    expect(screen.queryByText("Treasury Yield")).toBeNull();
+  });
+
+  it("hides Treasury Yield from non-admin members even when enabled (#166)", () => {
+    render(<Sidebar username="member" role="MEMBER" newPaymentsEnabled yieldEnabled />);
+    expect(screen.queryByText("Treasury Yield")).toBeNull();
+  });
+
   it("renders a logout control wired to the given action when provided (#115)", () => {
     const onLogout = vi.fn();
     render(<Sidebar username="admin" role="ADMIN" newPaymentsEnabled onLogout={onLogout} />);

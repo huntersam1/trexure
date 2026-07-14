@@ -5,6 +5,29 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P5 settings UI + treasury dashboard — #166 (epic #161)
+
+An ADMIN-only, `ENABLE_YIELD`-gated `/yield` page: configure yield and see the
+numbers. Gated exactly like `/reports` + the pool rail (`if (!env.ENABLE_YIELD)
+notFound()`, then `role !== "ADMIN" → notFound()`).
+
+- **Dashboard read model** `lib/yield/dashboard.ts` `loadYieldDashboard`: sums in
+  the DB (bounded, exact Decimal) — in-yield balance (Σ principal where
+  `SWEPT_IN`), realized accrued yield (Σ `accruedYield`), platform fee + net,
+  active/unwound/failed counts, and effective APY (the demo `YIELD_APY_BPS`).
+- **Settings action** `lib/yield/actions.ts` `saveYieldConfigAction`: `requireAdmin`
+  (tenantId from the session, never the form) → `saveYieldConfig` (validates) →
+  `recordAudit("yield.config.update")`. Server-action pattern (`useActionState`,
+  no CSRF token — Next's built-in origin protection), mirrors `lib/settings`.
+- **UI**: `app/(app)/yield/{page,YieldSettingsForm}.tsx` — KPI cards (`KpiStat`),
+  enable/buffer/threshold/fee form, disabled-state banner. Gated **"Treasury
+  Yield"** sidebar link (new `yieldEnabled` prop threaded layout → AppShell →
+  Sidebar; shown only for ADMIN + flag on).
+- Tests: DB-backed dashboard aggregate, server-action (session-tenant/audit/422/
+  non-admin), Sidebar link visibility (ADMIN+flag vs member vs flag-off). 50 yield/
+  shell tests green. **Live-verified**: admin renders the page (APY 5.00% + form);
+  a member gets the not-found page (gate holds).
+
 ## Treasury Float Yield — P4 receipt & reconciliation integration — #165 (epic #161)
 
 The two swap hops and the accrued yield now **appear** in the Stripe-style receipt

@@ -15,6 +15,7 @@ function renderShell() {
       role="ADMIN"
       newPaymentsEnabled
       poolRailEnabled={false}
+      yieldEnabled={false}
       onLogout={vi.fn()}
     >
       <p>page body</p>

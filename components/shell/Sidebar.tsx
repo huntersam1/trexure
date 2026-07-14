@@ -19,6 +19,7 @@ export function Sidebar({
   role,
   newPaymentsEnabled,
   poolRailEnabled = false,
+  yieldEnabled = false,
   onNavigate,
   onClose,
   onLogout,
@@ -27,6 +28,7 @@ export function Sidebar({
   role: "ADMIN" | "MEMBER";
   newPaymentsEnabled: boolean;
   poolRailEnabled?: boolean;
+  yieldEnabled?: boolean;
   /** Called when a nav link is followed — used to close the mobile drawer. */
   onNavigate?: () => void;
   /** When provided, renders a close (X) button in the header (mobile drawer). */
@@ -111,6 +113,21 @@ export function Sidebar({
           >
             <Icon name="groups" className="text-[20px]" />
             Batch payments
+          </Link>
+        )}
+        {role === "ADMIN" && yieldEnabled && (
+          <Link
+            href={"/yield" as Route}
+            onClick={onNavigate}
+            aria-current={isActive("/yield") ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-body-sm transition-all ${
+              isActive("/yield")
+                ? "bg-primary-container text-primary font-bold"
+                : "text-on-surface-variant hover:bg-surface-container-low"
+            }`}
+          >
+            <Icon name="savings" className="text-[20px]" />
+            Treasury Yield
           </Link>
         )}
         {role === "ADMIN" && (

@@ -18,6 +18,7 @@ export default async function AppLayout({ children }: { children: ReactNode }): 
       role={user.role}
       newPaymentsEnabled={env.ENABLE_NEW_PAYMENTS}
       poolRailEnabled={env.ENABLE_POOL_RAIL}
+      yieldEnabled={env.ENABLE_YIELD}
       onLogout={logoutAction}
     >
       {children}

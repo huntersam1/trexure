@@ -18,6 +18,7 @@ export function AppShell({
   role,
   newPaymentsEnabled,
   poolRailEnabled,
+  yieldEnabled,
   onLogout,
   children,
 }: {
@@ -25,6 +26,7 @@ export function AppShell({
   role: "ADMIN" | "MEMBER";
   newPaymentsEnabled: boolean;
   poolRailEnabled: boolean;
+  yieldEnabled: boolean;
   onLogout: () => void | Promise<void>;
   children: ReactNode;
 }): JSX.Element {
@@ -41,7 +43,7 @@ export function AppShell({
     setOpen(false);
   }
 
-  const nav = { username, role, newPaymentsEnabled, poolRailEnabled, onLogout };
+  const nav = { username, role, newPaymentsEnabled, poolRailEnabled, yieldEnabled, onLogout };
 
   return (
     <div className="h-screen overflow-hidden flex bg-background text-on-surface">
