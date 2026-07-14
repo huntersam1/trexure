@@ -174,9 +174,10 @@ describe("sweepOut", () => {
     expect(await sweepOut(TENANT, id)).toEqual({ status: "skipped", reason: "no-position" });
   });
 
-  it("unwinds the position, records accrued yield, and transitions to SWEPT_OUT", async () => {
+  it("unwinds the position, records accrued yield + platform fee, and transitions to SWEPT_OUT", async () => {
     flag.enabled = true;
-    await saveYieldConfig(TENANT, { enabled: true }); // buffer 0 → principal = 1000
+    // buffer 0 → principal = 1000; 25 bps management fee snapshotted at sweep-in.
+    await saveYieldConfig(TENANT, { enabled: true, feeBps: "25" });
     const { id, createdAt } = await sweptInPayment("1000");
 
     // Hold exactly one year → 5% APY on 1000 = 50 accrued; gross 1050 unwound at 5bps.
@@ -189,6 +190,9 @@ describe("sweepOut", () => {
     const pos = await prisma.yieldPosition.findUniqueOrThrow({ where: { paymentId: id } });
     expect(pos.status).toBe("SWEPT_OUT");
     expect(pos.accruedYield.toString()).toBe("50");
+    // Platform fee recorded per position (#161 P6): 25 bps of 50 = 0.125.
+    expect(pos.feeAmount.toString()).toBe("0.125");
+    expect(pos.feeBps.toString()).toBe("25");
     expect(pos.sweptOutAmount!.toString()).toBe("1049.475");
     expect(pos.sweepOutTxHash).toMatch(/^[0-9a-f]{64}$/);
     expect(pos.sweepOutLedger).toBeGreaterThan(0);

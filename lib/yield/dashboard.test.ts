@@ -6,7 +6,7 @@ import { loadYieldDashboard } from "./dashboard";
 
 const TENANT = "test_tenant_yield_dash_166";
 
-async function position(paymentIntent: string, status: string, principal: string, accrued = "0") {
+async function position(paymentIntent: string, status: string, principal: string, accrued = "0", feeAmount = "0") {
   const p = await prisma.payment.create({
     data: {
       tenantId: TENANT, intentId: paymentIntent, status: "PENDING",
@@ -15,7 +15,7 @@ async function position(paymentIntent: string, status: string, principal: string
     } as never,
   });
   await prisma.yieldPosition.create({
-    data: { tenantId: TENANT, paymentId: p.id, status: status as never, principal, accruedYield: accrued } as never,
+    data: { tenantId: TENANT, paymentId: p.id, status: status as never, principal, accruedYield: accrued, feeAmount } as never,
   });
 }
 
@@ -24,7 +24,7 @@ beforeAll(async () => {
   await saveYieldConfig(TENANT, { enabled: true, minIdleBuffer: "10", feeBps: "25" });
   await position("dash_in_1", "SWEPT_IN", "800");
   await position("dash_in_2", "SWEPT_IN", "200");
-  await position("dash_out_1", "SWEPT_OUT", "500", "50");
+  await position("dash_out_1", "SWEPT_OUT", "500", "50", "0.125"); // 25 bps of 50 recorded
   await position("dash_failed_1", "FAILED", "300");
 });
 

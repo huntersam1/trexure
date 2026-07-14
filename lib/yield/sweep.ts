@@ -169,6 +169,10 @@ export async function sweepOut(
   const principal = pos.principal.toString();
   const now = opts?.now ?? new Date();
   const accrued = accrueYield(principal, now.getTime() - pos.createdAt.getTime());
+  // Platform management fee, recorded per position (#161 P6): feeBps × accrued,
+  // using the rate snapshotted at sweep-in. Default 0 bps → 0 fee. The tenant
+  // keeps accrued − fee.
+  const feeAmount = new Prisma.Decimal(accrued).mul(pos.feeBps).div(10000).toFixed(8);
   // The yield asset is worth principal + accrued in USDC terms; unwinding swaps
   // that gross value back, minus the swap slippage.
   const grossReturn = new Prisma.Decimal(principal).plus(accrued).toString();
@@ -183,6 +187,7 @@ export async function sweepOut(
           status: "SWEPT_OUT",
           sweptOutAmount: swap.toAmount,
           accruedYield: accrued,
+          feeAmount,
           sweepOutTxHash: swap.txHash,
           sweepOutLedger: swap.ledger,
         },

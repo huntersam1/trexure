@@ -5,6 +5,35 @@ A running, append-only log of shipped features. One entry per merged change
 
 ---
 
+## Treasury Float Yield — P6 attribution + platform fee + E2E — #167 (epic #161, COMPLETE)
+
+The finale: platform-fee accounting, a per-tenant yield attribution report, and an
+end-to-end tie-out. **Completes epic #161** (P1–P6).
+
+- **Platform fee recorded per position**: `sweepOut` now computes `feeAmount =
+  feeBps × accrued` (rate snapshotted at sweep-in) and persists it on the
+  `YieldPosition` (P3 left it 0). Default 0 bps → 0 fee. The dashboard sums the
+  **recorded** `feeAmount` (not a re-derivation from the current rate).
+- **Yield Attribution report** `lib/reports/yield-attribution.ts`
+  (`buildYieldAttribution`): per-position rows (principal, accrued, feeBps,
+  platform fee, net-to-tenant, both swap tx) + roll-up by asset and status counts,
+  read straight from stored positions (no drift). Reuses the R1–R5 csv/pdf/scope
+  foundation. Route `GET /api/reports/yield?from&to&format=csv|pdf` (`requireAdmin`
+  + audit + stream); ADMIN-gated `/reports/yield` page (preview + download) + a
+  gated card on `/reports` (shown when `ENABLE_YIELD`).
+- **E2E verified** against real Postgres — fund → sweep-in → sweep-out → settle →
+  receipt + attribution + dashboard — every figure ties out across all three
+  surfaces (accrued 49.5, platform fee 0.12375, net 49.37625). The buffer-fallback
+  path is covered by the P3 unit test.
+- Tests: DB-backed attribution builder + rollup, CSV snapshot, route RBAC/audit/
+  stream, `feeAmount` persistence in `sweepOut`, dashboard summing recorded fee.
+
+**Epic #161 done** — P1 #162 (schema) · P2 #163 (sweep-in) · P3 #164 (sweep-out +
+liquidity-sacred fallback) · P4 #165 (receipt/reconciliation) · P5 #166
+(settings + dashboard) · P6 #167 (attribution + fee + E2E). ZK privacy path
+unchanged throughout; simulated swap leg (a real testnet DEX path payment can
+replace `lib/yield/swap.ts` without touching the engine).
+
 ## Treasury Float Yield — P5 settings UI + treasury dashboard — #166 (epic #161)
 
 An ADMIN-only, `ENABLE_YIELD`-gated `/yield` page: configure yield and see the

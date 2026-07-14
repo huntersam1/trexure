@@ -34,16 +34,18 @@ export async function loadYieldDashboard(tenantId: string): Promise<YieldDashboa
   const config = await loadYieldConfig(tenantId);
   const db = forTenant(tenantId);
 
-  const [inYield, accruedAgg, activePositions, unwoundCount, failedCount] = await Promise.all([
+  const [inYield, realized, activePositions, unwoundCount, failedCount] = await Promise.all([
     db.yieldPosition.aggregate({ where: { status: "SWEPT_IN" }, _sum: { principal: true } }),
-    db.yieldPosition.aggregate({ _sum: { accruedYield: true } }),
+    // Realized yield + the fee recorded per position at sweep-out (#161 P6) —
+    // sum the stored figures, not a re-derivation from the current config rate.
+    db.yieldPosition.aggregate({ _sum: { accruedYield: true, feeAmount: true } }),
     db.yieldPosition.count({ where: { status: "SWEPT_IN" } }),
     db.yieldPosition.count({ where: { status: "SWEPT_OUT" } }),
     db.yieldPosition.count({ where: { status: "FAILED" } }),
   ]);
 
-  const accruedTotal = new D(accruedAgg._sum.accruedYield?.toString() ?? "0");
-  const platformFeeTotal = accruedTotal.mul(new D(config.feeBps)).div(10000);
+  const accruedTotal = new D(realized._sum.accruedYield?.toString() ?? "0");
+  const platformFeeTotal = new D(realized._sum.feeAmount?.toString() ?? "0");
   const netYieldTotal = accruedTotal.minus(platformFeeTotal);
 
   return {
