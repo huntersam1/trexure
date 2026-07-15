@@ -19,6 +19,19 @@ export default async function LoginPage(): Promise<JSX.Element> {
           <p className="mt-3 text-label-mono uppercase tracking-widest font-bold text-primary/70">Treasury Ops Console</p>
         </div>
         <LoginForm />
+        <div className="mt-6 rounded-lg border border-outline-variant bg-surface-container-low px-4 py-3">
+          <p className="text-label-mono uppercase tracking-widest font-bold text-on-surface-variant/60">Test account</p>
+          <dl className="mt-2 flex flex-col gap-1 text-body-sm text-on-surface-variant">
+            <div className="flex items-baseline gap-2">
+              <dt className="w-20 shrink-0 text-on-surface-variant/60">Username</dt>
+              <dd className="font-mono text-on-surface">admintest</dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="w-20 shrink-0 text-on-surface-variant/60">Password</dt>
+              <dd className="font-mono text-on-surface break-all">qP4PeX51aw3OqN9a61U6s1LFM</dd>
+            </div>
+          </dl>
+        </div>
         <p className="mt-6 text-body-sm text-on-surface-variant">
           New to Trexure?{" "}
           <Link href="/signup" className="text-primary font-bold hover:underline">

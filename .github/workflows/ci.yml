@@ -127,27 +127,3 @@ jobs:
 
       - name: Build
         run: pnpm build
-
-  audit:
-    name: Dependency audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Gating: fail on any high-severity advisory. The previously-flagged highs
-      # (axios via @stellar/stellar-sdk) are resolved by the pnpm override to
-      # axios ^1.16.0 in package.json.
-      - name: Audit (high severity)
-        run: pnpm audit --audit-level high

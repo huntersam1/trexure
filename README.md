@@ -378,6 +378,7 @@ committed**.
 
 | Role | Username / email | Password | Log in at |
 |---|---|---|---|
+| **Test account** ([app.trexure.xyz](https://app.trexure.xyz)) | `admintest` | `qP4PeX51aw3OqN9a61U6s1LFM` | `/login` |
 | **Admin** | `admin` | `SEED_ADMIN_PASSWORD` (from `.env` / deploy env) | `/login` |
 | **Member** | `member` | `demo-member-pass-2026` | `/login` |
 | **Receiver** | `maria@freelance.demo` | `demo-maria-pass-2026` | `/claim/login` |
